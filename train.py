@@ -1,0 +1,107 @@
+# imports
+import numpy as np
+import pandas as pd
+import tkinter
+
+# Preprocessing
+from preprocessing import AFFRDataset, get_data, padded_collate
+
+# Get our own classes for models
+from RNNLM import RNNLM
+from train_rnnlm import train_rnnlm
+from train_sentence_vae import train_sentenceVAE
+
+# All things torch-y
+import torch
+from torch.utils.data import DataLoader
+
+# To parse dem arguments
+import argparse
+
+# device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("You're running on: ", device)
+
+# Get datasets
+train_data, validation_data, test_data, tokenizer = get_data()
+
+# Initialize argument parser
+parser = argparse.ArgumentParser()
+
+# Model selection, device selection
+parser.add_argument('--model', type=str, default="vae",
+                    help='Select model to use')
+parser.add_argument('--device', type=str, default=device,
+                    help='Select which device to use')
+
+# Standard model parameters
+parser.add_argument('--learning_rate', type=float, default=2e-3,
+                    help='Learning rate')
+parser.add_argument('--num_epochs', type=int, default=50,
+                    help='Number of epochs to train for')
+parser.add_argument('--batch_size', type=int, default=64,
+                    help='The batch size of our model')
+parser.add_argument('--vocab_size', type=int, default=tokenizer.vocab_size,
+                    help='Size of the vocabulary')
+parser.add_argument('--learning_rate_decay', type=int, default=0.96,
+                    help='Learning rate decay')
+
+# GRU Parameters
+parser.add_argument('--num_hidden', type=int, default=128,
+                    help='Number of hidden units in selected LSTM model')
+parser.add_argument('--num_layers', type=int, default=1,
+                    help='Number of layers')
+
+# VAE Parameters
+parser.add_argument('--z_dim', type=int, default=13,
+                    help='Latent space dimension')
+
+# Paths
+parser.add_argument('--save_path', type=str, default="./models/",
+                    help='Select where to save the model')
+parser.add_argument('--load_path', type=str, default=None,
+                    help='Select from where to load the model')
+parser.add_argument('--model_name', type=str, default="test",
+                    help='Select from where to load the model')
+parser.add_argument('--model_path', type=str, default="models/trump_model.txt",
+                    help='Select from where to load the model')
+parser.add_argument('--optim_path', type=str, default="models/trump_optim.txt",
+                    help='Select from where to load the model')
+
+# Model saving
+parser.add_argument('--new_model', type=bool, default=True,
+                    help='Select from where to load the model')
+
+# Printing and sampling
+parser.add_argument('--print_every', type=int, default=100,
+                    help='Number of iterations before we print performance')
+
+parser.add_argument('--sample_every', type=int, default=100,
+                    help='Number of iterations after which we sample a new sequence')
+
+parser.add_argument('--sample_strat', type=str, default='rand',
+                    help='Select the sampling strategy to use')
+
+parser.add_argument('--sample_temp', type=int, default=1.5,
+                    help='Sampling temperature vs greedy sampling')
+
+# Parse the arguments, get dictionary and add tokenizer
+args = parser.parse_args()
+config = vars(args)
+config['tokenizer'] = tokenizer
+
+# Make trainloaders
+train_data = DataLoader(train_data, batch_size=config['batch_size'], shuffle=True, collate_fn=padded_collate)
+valid_data = DataLoader(validation_data, batch_size=config['batch_size'], shuffle=False, collate_fn=padded_collate)
+test_data  = DataLoader(test_data, batch_size=config['batch_size'], shuffle=False, collate_fn=padded_collate)
+
+# Run
+print(config['model'])
+if config['model'] in ("rnnlm", "RNNLM", "RNNlm", "rnnLM"):
+    print("Training RNNLM now")
+    train_rnnlm(config, train_data, validation_data, tokenizer) 
+elif config['model'] in ("VAE", "Vae", "vae"):
+    print("Training VAE now")
+    train_sentenceVAE(train_data, valid_data, test_data, config)
+else:
+    raise ValueError("Please choose VAE or RNNLM")
