@@ -25,9 +25,10 @@ class Encoder(nn.Module):
         #TODO: Implement word dropout
         #Should this embedding be the same as in the decoder?
         self.embed = nn.Embedding(vocab_size, embed_size)
-        self.gru = nn.GRU(embed_size, hidden_dim, bidirectional=bidir) #TODO: Make this bidirectional
-        self.mean_lin = nn.Linear(hidden_dim, z_dim)
-        self.std_lin = nn.Linear(hidden_dim, z_dim)
+        self.gru = nn.GRU(embed_size, hidden_dim, bidirectional=bidir, batch_first=True) #TODO: Make this bidirectional
+        self.mean_lin = nn.Linear(hidden_dim * (bidir + 1), z_dim)
+        self.std_lin = nn.Linear(hidden_dim * (bidir + 1), z_dim)
+        self.bidir = bidir
 
     def forward(self, input):
         """
@@ -35,13 +36,14 @@ class Encoder(nn.Module):
 
         Returns mean and std with shape [batch_size, z_dim].
         """
-
+        batch_size = input.shape[0]
         mean, std = None, None
         embedding = self.embed(input)
         
         #Push input through a non-linearity
-        embedding = embedding.permute(1,0,2)
-        out, hidden = self.gru(embedding)
+        _, hidden = self.gru(embedding)
+        if(self.bidir):
+            hidden = torch.cat((hidden[0,:,:],hidden[1,:,:]),dim=1)
 
         #Then transform to latent space
         mean = self.mean_lin(hidden)
@@ -65,9 +67,9 @@ class Decoder(nn.Module):
 
     def __init__(self, vocab_size, embed_size, z_dim, bidir, config):
         super().__init__()
-        self.num_hidden = config.num_hidden
+        self.num_hidden = config['num_hidden']
         self.embed = nn.Embedding(vocab_size,embed_size)
-        self.gru = nn.GRU(embed_size,z_dim,batch_first=True, bidirectional=bidir)
+        self.gru = nn.GRU(embed_size,z_dim, batch_first=True, bidirectional=bidir)
         self.linear = nn.Linear(z_dim, self.num_hidden)
         self.output = nn.Linear(z_dim,vocab_size)
 

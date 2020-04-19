@@ -20,7 +20,7 @@ import argparse
 
 # device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("You're running on: ", device)
+print("You're running on:", device)
 
 # Get datasets
 train_data, validation_data, test_data, tokenizer = get_data()
