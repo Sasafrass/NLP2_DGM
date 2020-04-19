@@ -65,7 +65,7 @@ class Decoder(nn.Module):
 
     def __init__(self, vocab_size, embed_size, z_dim, bidir, config):
         super().__init__()
-        self.num_hidden = config.num_hidden
+        self.num_hidden = config['num_hidden']
         self.embed = nn.Embedding(vocab_size,embed_size)
         self.gru = nn.GRU(embed_size,z_dim,batch_first=True, bidirectional=bidir)
         self.linear = nn.Linear(z_dim, self.num_hidden)
