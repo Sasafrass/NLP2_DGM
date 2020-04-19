@@ -20,7 +20,7 @@ import argparse
 
 # device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("You're running on: ", device)
+print("You're running on:", device)
 
 # For correct argument parsing
 def str2bool(arg):
@@ -34,6 +34,7 @@ def str2bool(arg):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 # Get datasets
+print("Preparing data and tokenizer...")
 train_data, validation_data, test_data, tokenizer = get_data()
 
 # Initialize argument parser
@@ -70,6 +71,8 @@ parser.add_argument('--dropout_keep_rate', type=float, default=0.7,
                     help='Fraction of words to keep in word dropout')
 parser.add_argument('--word_dropout', type=str2bool, default=False,
                     help='Flag to use word dropout or not')
+parser.add_argument('--bidirectional', type=bool, default=True,
+                    help='Encoder & decoder GRU bidirectionality')
 
 # Paths
 parser.add_argument('--save_path', type=str, default="./models/",
