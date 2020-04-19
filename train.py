@@ -23,6 +23,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("You're running on:", device)
 
 # Get datasets
+print("Preparing data and tokenizer...")
 train_data, validation_data, test_data, tokenizer = get_data()
 
 # Initialize argument parser
@@ -55,6 +56,8 @@ parser.add_argument('--num_layers', type=int, default=1,
 # VAE Parameters
 parser.add_argument('--z_dim', type=int, default=13,
                     help='Latent space dimension')
+parser.add_argument('--bidirectional', type=bool, default=True,
+                    help='Encoder & decoder GRU bidirectionality')
 
 # Paths
 parser.add_argument('--save_path', type=str, default="./models/",

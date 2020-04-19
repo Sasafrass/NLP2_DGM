@@ -67,19 +67,21 @@ class Decoder(nn.Module):
 
     def __init__(self, vocab_size, embed_size, z_dim, bidir, config):
         super().__init__()
+        self.bidir = bidir
         self.num_hidden = config['num_hidden']
         self.embed = nn.Embedding(vocab_size,embed_size)
         self.gru = nn.GRU(embed_size,z_dim, batch_first=True, bidirectional=bidir)
         self.linear = nn.Linear(z_dim, self.num_hidden)
-        self.output = nn.Linear(z_dim,vocab_size)
+        self.output = nn.Linear(z_dim * (bidir + 1),vocab_size)
 
     def forward(self, input, hidden=None):
         embedding = self.embed(input)
         
-        if(hidden == None):
+        if(hidden is None):
             out,hidden = self.gru.forward(embedding)
         else:
             out,hidden = self.gru.forward(embedding,hidden)
+        
         out = self.output(out)
 
         return out, hidden
@@ -102,7 +104,7 @@ class SentenceVAE(nn.Module):
         
         self.vocab_size = vocab_size
         self.z_dim = z_dim
-        self.num_dirs = bidir + 1
+        self.bidir = bidir
         self.encoder = Encoder(vocab_size, embed_size, hidden_dim, z_dim, bidir)
         self.decoder = Decoder(vocab_size, embed_size, z_dim, bidir, config)
 
@@ -120,6 +122,10 @@ class SentenceVAE(nn.Module):
         #Reparameterization trick
         q_z = Normal(mean,std)
         sample_z = q_z.rsample()
+        
+        if(self.bidir):
+            sample_z_2 = q_z.rsample()
+            sample_z = torch.cat((sample_z.unsqueeze(0),sample_z_2.unsqueeze(0)),dim=0)
 
         px_logits, _ = self.decoder(input,sample_z)
         p_x = Categorical(logits=px_logits)
@@ -146,7 +152,11 @@ class SentenceVAE(nn.Module):
         text = list(start) #This stores the eventual output
         current = torch.from_numpy(start).long().view(1,-1)
         q_z = Normal(torch.zeros(self.z_dim),torch.ones(self.z_dim))
-        sample_z = q_z.rsample().view(self.num_dirs,1,-1).to(device)
+        sample_z = q_z.rsample().view(1 ,1,-1).to(device)
+
+        if(self.bidir):
+            sample_z_2 = q_z.rsample().view(1 ,1,-1).to(device)
+            sample_z = torch.cat((sample_z,sample_z_2),dim=0)
 
         #The initial step
         input = current.to(device)
