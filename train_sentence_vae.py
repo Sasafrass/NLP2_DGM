@@ -28,9 +28,10 @@ def train_sentenceVAE(train_loader,
     batch_size = config['batch_size']
     vocab_size = config['vocab_size']
     tokenizer  = config['tokenizer']
+    bidir = config['bidirectional']
 
     # Instantiate model and make it CUTA
-    model = SentenceVAE(vocab_size, config, z_dim=zdim) 
+    model = SentenceVAE(vocab_size, config, z_dim=zdim, bidir = bidir) 
     print("Is this still cuda?: ", device)
     model = model.to(device)
     sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)
@@ -71,13 +72,13 @@ def epoch_iter(model, data, optimizer, device):
             batch_elbo.backward()
             optimizer.step()
             iterations = step
-            total_elbo += batch_elbo
+            total_elbo += batch_elbo.detach()
     else:
         for step, (inputs, targets, lengths) in enumerate(data):
             with torch.no_grad():
                 batch_elbo = model(inputs.to(device), targets.to(device), lengths, device)
                 iterations = step
-                total_elbo += batch_elbo
+                total_elbo += batch_elbo.detach()
     average_epoch_elbo = total_elbo/iterations
     return average_epoch_elbo
 
