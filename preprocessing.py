@@ -40,6 +40,9 @@ def get_data():
     text = [" ".join(line.leaves()).lower() for line in tree]
     tokenizer = WordTokenizer(text, max_vocab_size=10000)
     EOS = tokenizer.encode('.')
+    
+    # Unknown token is a 3 (BOS and EOS are 1 and 2)
+    UNK = 3
 
     # Get output dict and remapping of file names to dataset names
     files = ["02-21.10way.clean", "22.auto.clean", "23.auto.clean"]
