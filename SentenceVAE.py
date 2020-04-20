@@ -13,7 +13,6 @@ from torch.distributions.categorical import Categorical
 class Encoder(nn.Module):
     """
     Encoder module part of a VAE
-
     Returns:
         mean: Means of size z_dim for approximate posterior 
         std : Standard deviations of size z_dim for approximate posterior
@@ -33,7 +32,6 @@ class Encoder(nn.Module):
     def forward(self, input):
         """
         Perform forward pass of encoder.
-
         Returns mean and std with shape [batch_size, z_dim].
         """
         batch_size = input.shape[0]
@@ -55,11 +53,9 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     """
     Decoder module for our VAE
-
     Args:
         Input : Input, usually in batch
         Hidden: Previous hidden state
-
     Returns:
         Out   : Output for current time step
         Hidden: Hidden state for current time step
@@ -90,12 +86,10 @@ class Decoder(nn.Module):
 class SentenceVAE(nn.Module):
     """
     Full SentenceVAE model incorporating encoder and decoder
-
     Args:
         Input: Input from data loader, usually in batches
         Targets: Targets from data loader, usually in batches
         Lengths: Lengths of the original sentences
-
     Returns:
         average_negative_elbo: This is the average negative elbo 
     """

@@ -49,7 +49,7 @@ parser.add_argument('--device', type=str, default=device,
 # Standard model parameters
 parser.add_argument('--learning_rate', type=float, default=2e-3,
                     help='Learning rate')
-parser.add_argument('--num_epochs', type=int, default=50,
+parser.add_argument('--num_epochs', type=int, default=3,
                     help='Number of epochs to train for')
 parser.add_argument('--batch_size', type=int, default=64,
                     help='The batch size of our model')
@@ -75,15 +75,17 @@ parser.add_argument('--bidirectional', type=bool, default=True,
                     help='Encoder & decoder GRU bidirectionality')
 
 # Paths
-parser.add_argument('--save_path', type=str, default="./models/",
+parser.add_argument('--save_path', type=str, default="models",
                     help='Select where to save the model')
-parser.add_argument('--load_path', type=str, default=None,
+parser.add_argument('--load_path', type=str, default="models",
                     help='Select from where to load the model')
 parser.add_argument('--model_name', type=str, default="test",
-                    help='Select from where to load the model')
+                    help='Define a model name')
 parser.add_argument('--model_path', type=str, default="models/trump_model.txt",
                     help='Select from where to load the model')
 parser.add_argument('--optim_path', type=str, default="models/trump_optim.txt",
+                    help='Select from where to load the model')
+parser.add_argument('--img_path', type=str, default="img",
                     help='Select from where to load the model')
 
 # Model saving

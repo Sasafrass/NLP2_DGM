@@ -1,9 +1,72 @@
+# System stuff
+import os
+
 # Numerical imports
-import numpy
+import numpy as np
 
 # torch-y
+import torch
 import torch.nn.functional as F
 
+# Visualisation
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+
+# To save the elbo plot
+def save_plot(train_curve, val_curve, epoch, config, name = 'elbo.pdf'):
+    """
+    Saves the training plot and validation plot in one figure
+
+    Args:
+        train_curve: List containing all training ELBO values
+        val_curve  : List containing all validation ELBO values
+        epoch      : Last epoch number, so we can get a range for plotting
+    """
+
+    # Checks whether the img folder exists - creates one if not
+    if not os.path.exists(config['img_path']):
+        os.makedirs(config['img_path'])
+
+    # Get better style
+    plt.style.use('ggplot')
+
+    # Generate horizontal subplot grid
+    fig, ax = plt.subplots(1,2, figsize = (14,4))
+    x = np.arange(len(train_curve)) + 1
+
+
+    # left plot - training
+    ax[0].plot(x, train_curve, 'g-')
+    ax[0].set_title("Training ELBO")
+    ax[0].set_xlabel("Number of epochs")
+    ax[0].set_ylabel("ELBO")
+    ax[0].xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    # right plot - validation
+    ax[1].plot(x, val_curve)
+    ax[1].set_title("Validation ELBO")
+    ax[1].set_xlabel("Number of epochs")
+    ax[1].set_ylabel("ELBO")
+    ax[1].xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    # Save, OS indifferent
+    fig.savefig(os.path.join(config['img_path'],name))
+
+# Does some saving of the model
+def save_model(model, config):
+    """
+    Function that saves a model to the desired location
+    """
+
+    # Check whether location exists - if not, create
+    if not os.path.exists(config['save_path']):
+        os.makedirs(config['save_path'])
+
+    # Get OS indifferent path
+    location = os.path.join(config['save_path'], config['model_name'] + ".pth",)
+    torch.save(model.state_dict(), location)
+
+# Function to generate text
 def generate_text(model,device,tokenizer,sampling_strat='max',temperature=1, starting_text=[1],ksize=1):
     """
     Function allowing us to generate text for RNNLM
@@ -45,3 +108,12 @@ def generate_text(model,device,tokenizer,sampling_strat='max',temperature=1, sta
             break
 
     return tokenizer.decode(text)
+
+if __name__== "__main__":
+    config = {}
+    config["img_path"] = "img"
+    config["model_name"] = "test"
+    config["save_path"] = "models"
+
+    save_plot([1,2,3], [3,1,2], 3, config)
+    print("hoi")
