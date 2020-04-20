@@ -6,6 +6,9 @@ from SentenceVAE import SentenceVAE
 import torch
 from torch.optim import Adam
 
+# Own classes and helpers
+from helpers import save_plot, save_model
+
 #
 def train_sentenceVAE(train_loader, 
                       valid_loader, 
@@ -51,9 +54,9 @@ def train_sentenceVAE(train_loader,
         sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)
         print(sample)
 
-    #TODO: Print elbo plot
-    #save_elbo_plot(train_curve, val_curve, 'elbo.pdf')
-
+    # Save ELBO plot and save the model
+    save_plot(train_curve, val_curve, epoch, config, name = 'elbo.pdf')
+    save_model(model, config)
 
 def epoch_iter(model, data, optimizer, device):
     """
