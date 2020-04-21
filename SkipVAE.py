@@ -19,15 +19,15 @@ class Encoder(nn.Module):
         std : Standard deviations of size z_dim for approximate posterior
     """
 
-    def __init__(self, vocab_size, embed_size, hidden_dim, z_dim, bidir):
+    def __init__(self, vocab_size, embed_size, hidden_dim, z_dim):
         super().__init__()
 
         #TODO: Implement word dropout
         #Should this embedding be the same as in the decoder?
         self.embed = nn.Embedding(vocab_size, embed_size)
-        self.gru = nn.GRU(embed_size, hidden_dim, bidirectional=bidir, batch_first=True)
-        self.mean_lin = nn.Linear(hidden_dim * (bidir + 1), z_dim)
-        self.std_lin = nn.Linear(hidden_dim * (bidir + 1), z_dim)
+        self.gru = nn.GRU(embed_size, hidden_dim, bidirectional=True, batch_first=True)
+        self.mean_lin = nn.Linear(hidden_dim * 2, z_dim)
+        self.std_lin = nn.Linear(hidden_dim * 2, z_dim)
 
     def forward(self, input):
         """
@@ -40,8 +40,7 @@ class Encoder(nn.Module):
         
         #Push input through a non-linearity
         _, hidden = self.gru(embedding)
-        if(self.bidir):
-            hidden = torch.cat((hidden[0,:,:],hidden[1,:,:]),dim=1)
+        hidden = torch.cat((hidden[0,:,:],hidden[1,:,:]),dim=1)
 
         #Then transform to latent space
         mean = self.mean_lin(hidden)
