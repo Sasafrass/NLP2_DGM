@@ -71,7 +71,6 @@ class Decoder(nn.Module):
         self.num_hidden = config['num_hidden']
         self.embed = nn.Embedding(vocab_size,embed_size)
         self.gru = nn.GRU(embed_size,z_dim, batch_first=True, bidirectional=bidir)
-        self.linear = nn.Linear(z_dim, self.num_hidden)
         self.output = nn.Linear(z_dim * (bidir + 1),vocab_size)
 
     def forward(self, input, hidden=None):

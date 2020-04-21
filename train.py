@@ -10,6 +10,7 @@ from preprocessing import AFFRDataset, get_data, padded_collate
 from RNNLM import RNNLM
 from train_rnnlm import train_rnnlm
 from train_sentence_vae import train_sentenceVAE
+from train_skip_vae import train_skipVAE
 
 # All things torch-y
 import torch
@@ -30,7 +31,7 @@ train_data, validation_data, test_data, tokenizer = get_data()
 parser = argparse.ArgumentParser()
 
 # Model selection, device selection
-parser.add_argument('--model', type=str, default="vae",
+parser.add_argument('--model', type=str, default="skip-vae",
                     help='Select model to use')
 parser.add_argument('--device', type=str, default=device,
                     help='Select which device to use')
@@ -56,7 +57,7 @@ parser.add_argument('--num_layers', type=int, default=1,
 # VAE Parameters
 parser.add_argument('--z_dim', type=int, default=13,
                     help='Latent space dimension')
-parser.add_argument('--bidirectional', type=bool, default=True,
+parser.add_argument('--bidirectional', type=bool, default=False,
                     help='Encoder & decoder GRU bidirectionality')
 
 # Paths
@@ -106,5 +107,8 @@ if config['model'] in ("rnnlm", "RNNLM", "RNNlm", "rnnLM"):
 elif config['model'] in ("VAE", "Vae", "vae"):
     print("Training VAE now")
     train_sentenceVAE(train_data, valid_data, test_data, config)
+elif config['model'] in ("SKIP-VAE", "Skip-VAE", "Skip-Vae", "Skip-vae", "skip-VAE", "skip-Vae", "skip-vae"):
+    print("Training Skip-VAE now")
+    train_skipVAE(train_data, valid_data, test_data, config)
 else:
-    raise ValueError("Please choose VAE or RNNLM")
+    raise ValueError("Please choose SKIP-VAE, VAE or RNNLM")
