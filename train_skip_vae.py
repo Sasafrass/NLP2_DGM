@@ -1,21 +1,18 @@
 # Imports
-# Get our Sentence VAE
-from SentenceVAE import SentenceVAE
+# Get our Skip-VAE
+from SkipVAE import SkipVAE
 
 # torch-y
 import torch
 from torch.optim import Adam
 
-# Own classes and helpers
-from helpers import save_plot, save_model
-
 #
-def train_sentenceVAE(train_loader, 
+def train_skipVAE(train_loader, 
                       valid_loader, 
                       test_loader,
                       config):
     """
-    Function to train our Sentence VAE
+    Function to train our Skip-VAE
 
     Args:
         train_loader: Loader for training data
@@ -33,7 +30,7 @@ def train_sentenceVAE(train_loader,
     tokenizer  = config['tokenizer']
 
     # Instantiate model and make it CUTA
-    model = SentenceVAE(vocab_size, config, z_dim=zdim) 
+    model = SkipVAE(vocab_size, config, z_dim=zdim) 
     print("Is this still cuda?: ", device)
     model = model.to(device)
     sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)
@@ -53,9 +50,9 @@ def train_sentenceVAE(train_loader,
         sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)
         print(sample)
 
-    # Save ELBO plot and save the model
-    save_plot(train_curve, val_curve, epoch, config)
-    save_model(model, config)
+    #TODO: Print elbo plot
+    #save_elbo_plot(train_curve, val_curve, 'elbo.pdf')
+
 
 def epoch_iter(model, data, optimizer, device):
     """
