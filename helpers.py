@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
 # To save the elbo plot
-def save_plot(train_curve, val_curve, epoch, config, name = 'elbo.pdf'):
+def save_plot(train_curve, val_curve, epoch, config):
     """
     Saves the training plot and validation plot in one figure
 
@@ -34,7 +34,6 @@ def save_plot(train_curve, val_curve, epoch, config, name = 'elbo.pdf'):
     fig, ax = plt.subplots(1,2, figsize = (14,4))
     x = np.arange(len(train_curve)) + 1
 
-
     # left plot - training
     ax[0].plot(x, train_curve, 'g-')
     ax[0].set_title("Training ELBO")
@@ -50,6 +49,14 @@ def save_plot(train_curve, val_curve, epoch, config, name = 'elbo.pdf'):
     ax[1].xaxis.set_major_locator(MaxNLocator(integer=True))
 
     # Save, OS indifferent
+    name = "{}_{}_{}_{}_{}_{}_ELBO.pdf".format(
+        config['model'],
+        config['num_epochs'],
+        config['num_hidden'],
+        config['dropout_keep_rate'],
+        config['bidirectional'],
+        config['learning_rate']
+    )
     fig.savefig(os.path.join(config['img_path'],name))
 
 # Does some saving of the model
@@ -63,7 +70,15 @@ def save_model(model, config):
         os.makedirs(config['save_path'])
 
     # Get OS indifferent path
-    location = os.path.join(config['save_path'], config['model_name'] + ".pth",)
+    name = "{}_{}_{}_{}_{}_{}.pth".format(
+        config['model'],
+        config['num_epochs'],
+        config['num_hidden'],
+        config['dropout_keep_rate'],
+        config['bidirectional'],
+        config['learning_rate']
+    )
+    location = os.path.join(config['save_path'], name)
     torch.save(model.state_dict(), location)
 
 # Function to generate text
@@ -108,12 +123,3 @@ def generate_text(model,device,tokenizer,sampling_strat='max',temperature=1, sta
             break
 
     return tokenizer.decode(text)
-
-if __name__== "__main__":
-    config = {}
-    config["img_path"] = "img"
-    config["model_name"] = "test"
-    config["save_path"] = "models"
-
-    save_plot([1,2,3], [3,1,2], 3, config)
-    print("hoi")

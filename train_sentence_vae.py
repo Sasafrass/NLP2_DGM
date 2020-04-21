@@ -55,7 +55,7 @@ def train_sentenceVAE(train_loader,
         print(sample)
 
     # Save ELBO plot and save the model
-    save_plot(train_curve, val_curve, epoch, config, name = 'elbo.pdf')
+    save_plot(train_curve, val_curve, epoch, config)
     save_model(model, config)
 
 def epoch_iter(model, data, optimizer, device):
