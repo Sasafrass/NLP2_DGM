@@ -19,15 +19,15 @@ class Encoder(nn.Module):
         std : Standard deviations of size z_dim for approximate posterior
     """
 
-    def __init__(self, vocab_size, embed_size, hidden_dim, z_dim, bidir):
+    def __init__(self, vocab_size, embed_size, hidden_dim, z_dim):
         super().__init__()
 
         #TODO: Implement word dropout
         #Should this embedding be the same as in the decoder?
         self.embed = nn.Embedding(vocab_size, embed_size)
-        self.gru = nn.GRU(embed_size, hidden_dim, bidirectional=bidir, batch_first=True)
-        self.mean_lin = nn.Linear(hidden_dim * (bidir + 1), z_dim)
-        self.std_lin = nn.Linear(hidden_dim * (bidir + 1), z_dim)
+        self.gru = nn.GRU(embed_size, hidden_dim, bidirectional=True, batch_first=True)
+        self.mean_lin = nn.Linear(hidden_dim * 2, z_dim)
+        self.std_lin = nn.Linear(hidden_dim * 2, z_dim)
 
     def forward(self, input):
         """
@@ -40,8 +40,7 @@ class Encoder(nn.Module):
         
         #Push input through a non-linearity
         _, hidden = self.gru(embedding)
-        if(self.bidir):
-            hidden = torch.cat((hidden[0,:,:],hidden[1,:,:]),dim=1)
+        hidden = torch.cat((hidden[0,:,:],hidden[1,:,:]),dim=1)
 
         #Then transform to latent space
         mean = self.mean_lin(hidden)
@@ -63,9 +62,9 @@ class Decoder(nn.Module):
         Hidden: Hidden state for current time step
     """
 
-    def __init__(self, vocab_size, embed_size, hidden_dim, z_dim, config):
+    def __init__(self, vocab_size, embed_size, hidden_dim, config):
         super().__init__()
-        self.z_dim = z_dim
+        self.hidden_dim = hidden_dim
         self.num_hidden = config['num_hidden']
         self.embed = nn.Embedding(vocab_size, embed_size)
         self.gru = nn.GRUCell(embed_size,hidden_dim)
@@ -108,7 +107,7 @@ class SkipVAE(nn.Module):
         self.encoder = Encoder(vocab_size, embed_size, hidden_dim, z_dim)
         self.upscale = nn.Linear(z_dim, hidden_dim)
         self.z_lin = nn.Linear(z_dim, hidden_dim, bias=False)
-        self.decoder = Decoder(vocab_size, embed_size, hidden_dim, z_dim, config)
+        self.decoder = Decoder(vocab_size, embed_size, hidden_dim, config)
 
     def forward(self, input, targets, lengths, device):
         """
@@ -123,9 +122,9 @@ class SkipVAE(nn.Module):
         
         #Reparameterization trick
         q_z = Normal(mean,std)
-        sample_z = q_z.rsample()
+        sample_z = q_z.rsample().squeeze(0)
 
-        h_0 = self.upscale(sample_z)
+        h_0 = torch.tanh(self.upscale(sample_z))
         z = self.z_lin(sample_z)
         px_logits, _ = self.decoder(input,h_0,z,device)
         p_x = Categorical(logits=px_logits)
@@ -135,10 +134,10 @@ class SkipVAE(nn.Module):
         KLD = distributions.kl_divergence(q_z, prior)
 
         criterion =  nn.CrossEntropyLoss(ignore_index=0)
-        recon_loss = criterion(p_x.logits.view(batch_size*seq_len,-1),targets.view(-1))
+        recon_loss = criterion(p_x.logits.view(batch_size*seq_len,-1),targets.view(-1))*seq_len
         average_negative_elbo = torch.sum(torch.mean(KLD,dim=0)) + recon_loss
         
-        return average_negative_elbo
+        return average_negative_elbo, KLD
 
 
     def sample(self, tokenizer, device, sampling_strat='max', temperature=1, starting_text=[1]):
@@ -153,12 +152,12 @@ class SkipVAE(nn.Module):
         current = torch.from_numpy(start).long().view(1,-1)
         input = current.to(device)
         q_z = Normal(torch.zeros(self.z_dim),torch.ones(self.z_dim))
-        sample_z = q_z.rsample().view(1,1,-1).to(device)
+        sample_z = q_z.rsample().view(1,-1).to(device)
 
         #The initial step
-        h_0 = self.upscale(sample_z)
+        h_0 = torch.tanh(self.upscale(sample_z))
         z = self.z_lin(sample_z)
-        output,hidden = self.decoder(input, h_0, device)
+        output,hidden = self.decoder(input, h_0, z, device)
         current = output[0,-1,:].squeeze()
         if(sampling_strat == 'max'):
             guess = torch.argmax(current).unsqueeze(0)
@@ -170,7 +169,7 @@ class SkipVAE(nn.Module):
         #Now that we have an h and c, we can start the loop
         i = 0
         while(i < 100):
-            output,hidden = self.decoder(input,hidden,device)
+            output,hidden = self.decoder(input,hidden,z,device)
             current = output.squeeze()
             if(sampling_strat == 'max'):
                 guess = torch.argmax(current).unsqueeze(0)
@@ -182,5 +181,4 @@ class SkipVAE(nn.Module):
             if(guess.item() == 2):
                 break
 
-        # 
         return tokenizer.decode(text)

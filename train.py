@@ -9,8 +9,7 @@ from preprocessing import AFFRDataset, get_data, padded_collate
 # Get our own classes for models
 from RNNLM import RNNLM
 from train_rnnlm import train_rnnlm
-from train_sentence_vae import train_sentenceVAE
-from train_skip_vae import train_skipVAE
+from train_vae import train_VAE
 
 # All things torch-y
 import torch
@@ -42,7 +41,7 @@ train_data, validation_data, test_data, tokenizer = get_data()
 parser = argparse.ArgumentParser()
 
 # Model selection, device selection
-parser.add_argument('--model', type=str, default="vae",
+parser.add_argument('--model', type=str, default="skip-vae",
                     help='Select model to use')
 parser.add_argument('--device', type=str, default=device,
                     help='Select which device to use')
@@ -124,10 +123,16 @@ if config['model'] in ("rnnlm", "RNNLM", "RNNlm", "rnnLM"):
     print("Training RNNLM now")
     train_rnnlm(config, train_data, validation_data, tokenizer) 
 elif config['model'] in ("VAE", "Vae", "vae"):
+    config['model'] = 'vae'
     print("Training VAE now")
-    train_sentenceVAE(train_data, valid_data, test_data, config)
+    train_VAE(train_data, valid_data, test_data, config)
+elif config['model'] in ('FREEBITS-VAE, FreeBitsVAE, FreeBitsVae, FreeBits-VAE, FreeBits-Vae, FreeBits-vae, freebits-vae'):
+    config['model'] = 'free'
+    print("Training FreeBits-VAE now")
+    train_VAE(train_data, valid_data, test_data, config)
 elif config['model'] in ("SKIP-VAE", "Skip-VAE", "Skip-Vae", "Skip-vae", "skip-VAE", "skip-Vae", "skip-vae"):
+    config['model'] = 'skip'
     print("Training Skip-VAE now")
-    train_skipVAE(train_data, valid_data, test_data, config)
+    train_VAE(train_data, valid_data, test_data, config)
 else:
-    raise ValueError("Please choose SKIP-VAE, VAE or RNNLM")
+    raise ValueError("Please choose SKIP-VAE, FreeBits-VAE, VAE or RNNLM")
