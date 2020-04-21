@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
 # To save the elbo plot
-def save_plot(train_curve, val_curve, epoch, config, KL=False):
+def save_plot(train_curve, val_curve, epoch, config):
     """
     Saves the training plot and validation plot in one figure
 
@@ -36,49 +36,28 @@ def save_plot(train_curve, val_curve, epoch, config, KL=False):
 
     # left plot - training
     ax[0].plot(x, train_curve, 'g-')
-    if(KL):
-        ax[0].set_title("Training KL")
-        ax[0].set_xlabel("Number of epochs")
-        ax[0].set_ylabel("KL")
-    else:
-        ax[0].set_title("Training ELBO")
-        ax[0].set_xlabel("Number of epochs")
-        ax[0].set_ylabel("ELBO")
+    ax[0].set_title("Training ELBO")
+    ax[0].set_xlabel("Number of epochs")
+    ax[0].set_ylabel("ELBO")
     ax[0].xaxis.set_major_locator(MaxNLocator(integer=True))
 
     # right plot - validation
     ax[1].plot(x, val_curve)
-    if(KL):
-        ax[1].set_title("Validation KL")
-        ax[1].set_xlabel("Number of epochs")
-        ax[1].set_ylabel("KL")
-    else:
-        ax[1].set_title("Validation ELBO")
-        ax[1].set_xlabel("Number of epochs")
-        ax[1].set_ylabel("ELBO")
+    ax[1].set_title("Validation ELBO")
+    ax[1].set_xlabel("Number of epochs")
+    ax[1].set_ylabel("ELBO")
     ax[1].xaxis.set_major_locator(MaxNLocator(integer=True))
 
     # Save, OS indifferent
-    if(KL):
-        name = "{}_{}_{}_{}_{}_{}_KL.pdf".format(
-            config['model'],
-            config['num_epochs'],
-            config['num_hidden'],
-            config['dropout_keep_rate'],
-            config['bidirectional'],
-            config['learning_rate']
-        )
-    else:
-        name = "{}_{}_{}_{}_{}_{}_ELBO.pdf".format(
-            config['model'],
-            config['num_epochs'],
-            config['num_hidden'],
-            config['dropout_keep_rate'],
-            config['bidirectional'],
-            config['learning_rate']
-        )
+    name = "{}_{}_{}_{}_{}_{}_ELBO.pdf".format(
+        config['model'],
+        config['num_epochs'],
+        config['num_hidden'],
+        config['dropout_keep_rate'],
+        config['bidirectional'],
+        config['learning_rate']
+    )
     fig.savefig(os.path.join(config['img_path'],name))
-
 
 # Does some saving of the model
 def save_model(model, config):
