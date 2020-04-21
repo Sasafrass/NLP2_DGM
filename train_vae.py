@@ -1,6 +1,8 @@
 # Imports
 # Get our Sentence VAE
 from SentenceVAE import SentenceVAE
+from SkipVAE import SkipVAE
+from FreeBitsVAE import FreeBitsVAE
 
 # torch-y
 import torch
@@ -10,7 +12,7 @@ from torch.optim import Adam
 from helpers import save_plot, save_model
 
 #
-def train_sentenceVAE(train_loader, 
+def train_VAE(train_loader, 
                       valid_loader, 
                       test_loader,
                       config):
@@ -25,6 +27,7 @@ def train_sentenceVAE(train_loader,
     """
 
     # Get necessary parameters from config
+    model_type = config['model']
     device = config['device']
     epochs = config['num_epochs']
     zdim = config['z_dim']
@@ -33,7 +36,13 @@ def train_sentenceVAE(train_loader,
     tokenizer  = config['tokenizer']
 
     # Instantiate model and make it CUTA
-    model = SentenceVAE(vocab_size, config, z_dim=zdim) 
+    if(model_type == 'vae'):
+        model = SentenceVAE(vocab_size, config, z_dim=zdim) 
+    elif(model_type == 'skip'):
+        model = SkipVAE(vocab_size, config, z_dim=zdim) 
+    elif(model_type == 'free'):
+        model = FreeBitsVAE(vocab_size, config, z_dim=zdim) 
+        
     print("Is this still cuda?: ", device)
     model = model.to(device)
     sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)
@@ -45,11 +54,12 @@ def train_sentenceVAE(train_loader,
 
     for epoch in range(epochs):
         print('Epoch', epoch)
-        elbos = run_epoch(model, (train_loader, valid_loader), optimizer, device)
+        elbos, KLs = run_epoch(model, (train_loader, valid_loader), optimizer, device) #TODO: Do something with the KLs
         train_elbo, val_elbo = elbos
+        train_kl, val_kl = KLs
         train_curve.append(train_elbo)
         val_curve.append(val_elbo)
-        print(f"[Epoch {epoch}] train neg elbo: {train_elbo} val neg elbo: {val_elbo}")
+        print("[Epoch {}] train neg elbo: {} train KL: {}, val neg elbo: {} val kl: {}".format(epoch,train_elbo,train_kl,val_elbo,val_kl))
         sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)
         print(sample)
 
@@ -66,24 +76,27 @@ def epoch_iter(model, data, optimizer, device):
     """
     average_epoch_elbo = None
     total_elbo = 0
+    total_KL = 0
     iterations = 0
     if(model.training):
         for step, (inputs, targets, lengths) in enumerate(data):
             optimizer.zero_grad()
-            batch_elbo = model(inputs.to(device), targets.to(device), lengths, device)
+            batch_elbo, batch_KL = model(inputs.to(device), targets.to(device), lengths, device)
             batch_elbo.backward()
             optimizer.step()
             iterations = step
             total_elbo += batch_elbo.detach()
+            total_KL += torch.mean(batch_KL.detach())
     else:
         for step, (inputs, targets, lengths) in enumerate(data):
             with torch.no_grad():
-                batch_elbo = model(inputs.to(device), targets.to(device), lengths, device)
+                batch_elbo, batch_KL = model(inputs.to(device), targets.to(device), lengths, device)
                 iterations = step
                 total_elbo += batch_elbo.detach()
+                total_KL += torch.mean(batch_KL.detach())
     average_epoch_elbo = total_elbo/iterations
-    return average_epoch_elbo
-
+    average_epoch_KL = total_KL/iterations
+    return average_epoch_elbo, average_epoch_KL
 
 def run_epoch(model, data, optimizer, device):
     """
@@ -92,9 +105,9 @@ def run_epoch(model, data, optimizer, device):
     traindata, valdata = data
 
     model.train()
-    train_elbo = epoch_iter(model, traindata, optimizer, device)
+    train_elbo, train_KL = epoch_iter(model, traindata, optimizer, device)
 
     model.eval()
-    val_elbo = epoch_iter(model, valdata, optimizer, device)
+    val_elbo, val_KL = epoch_iter(model, valdata, optimizer, device)
     
-    return train_elbo, val_elbo
+    return (train_elbo, val_elbo), (train_KL, val_KL)

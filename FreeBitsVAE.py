@@ -28,6 +28,7 @@ class Encoder(nn.Module):
         self.mean_lin = nn.Linear(hidden_dim * 2, z_dim)
         self.std_lin = nn.Linear(hidden_dim * 2, z_dim)
 
+
     def forward(self, input):
         """
         Perform forward pass of encoder.
@@ -45,7 +46,6 @@ class Encoder(nn.Module):
         std = F.softplus(self.std_lin(hidden))
 
         return mean, std
-
 
 class Decoder(nn.Module):
     """
@@ -78,7 +78,7 @@ class Decoder(nn.Module):
         return out, hidden
 
 
-class SentenceVAE(nn.Module):
+class FreeBitsVAE(nn.Module):
     """
     Full SentenceVAE model incorporating encoder and decoder
     Args:
@@ -89,8 +89,10 @@ class SentenceVAE(nn.Module):
         average_negative_elbo: This is the average negative elbo 
     """
 
-    def __init__(self, vocab_size, config, embed_size=464, hidden_dim=191, z_dim=13):
+    def __init__(self, vocab_size, config, lamb = 1, k = 1, embed_size=464, hidden_dim=191, z_dim=13):
         super().__init__()
+        self.lamb = torch.ones(config['batch_size'],requires_grad=False) * lamb
+        self.k = k
         self.z_dim = z_dim
         self.vocab_size = vocab_size
         self.encoder = Encoder(vocab_size, embed_size, hidden_dim, z_dim)
@@ -104,6 +106,7 @@ class SentenceVAE(nn.Module):
         """
         batch_size = input.shape[0]
         seq_len = input.shape[1]
+        self.lamb = self.lamb.to(device)
 
         average_negative_elbo = None
         mean, std = self.encoder(input)
@@ -116,9 +119,20 @@ class SentenceVAE(nn.Module):
         px_logits, _ = self.decoder(input,h_0)
         p_x = Categorical(logits=px_logits)
         
-        prior = Normal(torch.zeros(self.z_dim).to(device),torch.ones(self.z_dim).to(device))
+        # prior = Normal(torch.zeros(self.z_dim).to(device),torch.ones(self.z_dim).to(device))
         
-        KLD = distributions.kl_divergence(q_z, prior)
+        # TODO: Update the KL calculation
+        # TODO: Divide the z-dim over self.k number of groups
+        prev = 0
+        KLD = 0
+        prior = Normal(torch.zeros(self.k).to(device),torch.ones(self.k).to(device))
+        for i in range(self.z_dim):
+            q_z_j = Normal(mean[:, prev:prev+self.k],std[:, prev:prev+self.k])
+            KL_k = distributions.kl_divergence(q_z_j, prior)
+            maxes = torch.stack((self.lamb[0:KL_k.shape[0]], KL_k.squeeze()),dim=0)
+            batch_KL, _ = torch.max(maxes,dim=0)
+            KLD += batch_KL
+            prev = prev + self.k
 
         criterion =  nn.CrossEntropyLoss(ignore_index=0)
         recon_loss = criterion(p_x.logits.view(batch_size*seq_len,-1),targets.view(-1))*seq_len

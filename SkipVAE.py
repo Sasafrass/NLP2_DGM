@@ -124,7 +124,7 @@ class SkipVAE(nn.Module):
         q_z = Normal(mean,std)
         sample_z = q_z.rsample().squeeze(0)
 
-        h_0 = self.upscale(sample_z)
+        h_0 = torch.tanh(self.upscale(sample_z))
         z = self.z_lin(sample_z)
         px_logits, _ = self.decoder(input,h_0,z,device)
         p_x = Categorical(logits=px_logits)
@@ -134,10 +134,10 @@ class SkipVAE(nn.Module):
         KLD = distributions.kl_divergence(q_z, prior)
 
         criterion =  nn.CrossEntropyLoss(ignore_index=0)
-        recon_loss = criterion(p_x.logits.view(batch_size*seq_len,-1),targets.view(-1))
+        recon_loss = criterion(p_x.logits.view(batch_size*seq_len,-1),targets.view(-1))*seq_len
         average_negative_elbo = torch.sum(torch.mean(KLD,dim=0)) + recon_loss
         
-        return average_negative_elbo
+        return average_negative_elbo, KLD
 
 
     def sample(self, tokenizer, device, sampling_strat='max', temperature=1, starting_text=[1]):
@@ -155,7 +155,7 @@ class SkipVAE(nn.Module):
         sample_z = q_z.rsample().view(1,-1).to(device)
 
         #The initial step
-        h_0 = self.upscale(sample_z)
+        h_0 = torch.tanh(self.upscale(sample_z))
         z = self.z_lin(sample_z)
         output,hidden = self.decoder(input, h_0, z, device)
         current = output[0,-1,:].squeeze()
@@ -181,5 +181,4 @@ class SkipVAE(nn.Module):
             if(guess.item() == 2):
                 break
 
-        # 
         return tokenizer.decode(text)
