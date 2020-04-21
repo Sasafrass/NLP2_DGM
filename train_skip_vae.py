@@ -28,10 +28,9 @@ def train_skipVAE(train_loader,
     batch_size = config['batch_size']
     vocab_size = config['vocab_size']
     tokenizer  = config['tokenizer']
-    bidir = config['bidirectional']
 
     # Instantiate model and make it CUTA
-    model = SkipVAE(vocab_size, config, z_dim=zdim, bidir = bidir) 
+    model = SkipVAE(vocab_size, config, z_dim=zdim) 
     print("Is this still cuda?: ", device)
     model = model.to(device)
     sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)

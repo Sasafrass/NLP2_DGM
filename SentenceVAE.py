@@ -19,16 +19,15 @@ class Encoder(nn.Module):
         std : Standard deviations of size z_dim for approximate posterior
     """
 
-    def __init__(self, vocab_size, embed_size, hidden_dim, z_dim, bidir):
+    def __init__(self, vocab_size, embed_size, hidden_dim, z_dim):
         super().__init__()
 
         #TODO: Implement word dropout
         #Should this embedding be the same as in the decoder?
         self.embed = nn.Embedding(vocab_size, embed_size)
-        self.gru = nn.GRU(embed_size, hidden_dim, bidirectional=bidir, batch_first=True) #TODO: Make this bidirectional
-        self.mean_lin = nn.Linear(hidden_dim * (bidir + 1), z_dim)
-        self.std_lin = nn.Linear(hidden_dim * (bidir + 1), z_dim)
-        self.bidir = bidir
+        self.gru = nn.GRU(embed_size, hidden_dim, bidirectional=True, batch_first=True)
+        self.mean_lin = nn.Linear(hidden_dim * 2, z_dim)
+        self.std_lin = nn.Linear(hidden_dim * 2, z_dim)
 
     def forward(self, input):
         """
@@ -36,14 +35,12 @@ class Encoder(nn.Module):
 
         Returns mean and std with shape [batch_size, z_dim].
         """
-        batch_size = input.shape[0]
         mean, std = None, None
         embedding = self.embed(input)
         
         #Push input through a non-linearity
         _, hidden = self.gru(embedding)
-        if(self.bidir):
-            hidden = torch.cat((hidden[0,:,:],hidden[1,:,:]),dim=1)
+        hidden = torch.cat((hidden[0,:,:],hidden[1,:,:]),dim=1)
 
         #Then transform to latent space
         mean = self.mean_lin(hidden)
@@ -65,17 +62,16 @@ class Decoder(nn.Module):
         Hidden: Hidden state for current time step
     """
 
-    def __init__(self, vocab_size, embed_size, z_dim, bidir, config):
+    def __init__(self, vocab_size, embed_size, hidden_dim, config):
         super().__init__()
-        self.bidir = bidir
         self.num_hidden = config['num_hidden']
         self.embed = nn.Embedding(vocab_size,embed_size)
-        self.gru = nn.GRU(embed_size,z_dim, batch_first=True, bidirectional=bidir)
-        self.output = nn.Linear(z_dim * (bidir + 1),vocab_size)
+        self.gru = nn.GRU(embed_size,hidden_dim, batch_first=True)
+        self.output = nn.Linear(hidden_dim,vocab_size)
 
     def forward(self, input, hidden=None):
         embedding = self.embed(input)
-        
+
         if(hidden is None):
             out,hidden = self.gru.forward(embedding)
         else:
@@ -84,6 +80,7 @@ class Decoder(nn.Module):
         out = self.output(out)
 
         return out, hidden
+
 
 class SentenceVAE(nn.Module):
     """
@@ -98,14 +95,13 @@ class SentenceVAE(nn.Module):
         average_negative_elbo: This is the average negative elbo 
     """
 
-    def __init__(self, vocab_size, config, embed_size=464, hidden_dim=191, z_dim=13, bidir=False):
+    def __init__(self, vocab_size, config, embed_size=464, hidden_dim=191, z_dim=13):
         super().__init__()
-        
-        self.vocab_size = vocab_size
         self.z_dim = z_dim
-        self.bidir = bidir
-        self.encoder = Encoder(vocab_size, embed_size, hidden_dim, z_dim, bidir)
-        self.decoder = Decoder(vocab_size, embed_size, z_dim, bidir, config)
+        self.vocab_size = vocab_size
+        self.encoder = Encoder(vocab_size, embed_size, hidden_dim, z_dim)
+        self.upscale = nn.Linear(z_dim, hidden_dim)
+        self.decoder = Decoder(vocab_size, embed_size, hidden_dim, config)
 
     def forward(self, input, targets, lengths, device):
         """
@@ -121,12 +117,9 @@ class SentenceVAE(nn.Module):
         #Reparameterization trick
         q_z = Normal(mean,std)
         sample_z = q_z.rsample()
-        
-        if(self.bidir):
-            sample_z_2 = q_z.rsample()
-            sample_z = torch.cat((sample_z.unsqueeze(0),sample_z_2.unsqueeze(0)),dim=0)
 
-        px_logits, _ = self.decoder(input,sample_z)
+        h_0 = self.upscale(sample_z).unsqueeze(0)
+        px_logits, _ = self.decoder(input,h_0)
         p_x = Categorical(logits=px_logits)
         
         prior = Normal(torch.zeros(self.z_dim).to(device),torch.ones(self.z_dim).to(device))
@@ -139,7 +132,6 @@ class SentenceVAE(nn.Module):
         
         return average_negative_elbo
 
-
     def sample(self, tokenizer, device, sampling_strat='max', temperature=1, starting_text=[1]):
         """
         Function that allows us to sample a new sentence for the VAE
@@ -151,15 +143,12 @@ class SentenceVAE(nn.Module):
         text = list(start) #This stores the eventual output
         current = torch.from_numpy(start).long().view(1,-1)
         q_z = Normal(torch.zeros(self.z_dim),torch.ones(self.z_dim))
-        sample_z = q_z.rsample().view(1 ,1,-1).to(device)
-
-        if(self.bidir):
-            sample_z_2 = q_z.rsample().view(1 ,1,-1).to(device)
-            sample_z = torch.cat((sample_z,sample_z_2),dim=0)
+        sample_z = q_z.rsample().view(1,1,-1).to(device)
 
         #The initial step
         input = current.to(device)
-        output,hidden = self.decoder(input, sample_z)
+        hidden = self.upscale(sample_z)
+        output,hidden = self.decoder(input, hidden)
         current = output[0,-1,:].squeeze()
         if(sampling_strat == 'max'):
             guess = torch.argmax(current).unsqueeze(0)

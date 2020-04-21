@@ -31,7 +31,7 @@ train_data, validation_data, test_data, tokenizer = get_data()
 parser = argparse.ArgumentParser()
 
 # Model selection, device selection
-parser.add_argument('--model', type=str, default="skip-vae",
+parser.add_argument('--model', type=str, default="vae",
                     help='Select model to use')
 parser.add_argument('--device', type=str, default=device,
                     help='Select which device to use')
@@ -57,8 +57,6 @@ parser.add_argument('--num_layers', type=int, default=1,
 # VAE Parameters
 parser.add_argument('--z_dim', type=int, default=13,
                     help='Latent space dimension')
-parser.add_argument('--bidirectional', type=bool, default=False,
-                    help='Encoder & decoder GRU bidirectionality')
 
 # Paths
 parser.add_argument('--save_path', type=str, default="./models/",
