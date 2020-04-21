@@ -42,7 +42,7 @@ train_data, validation_data, test_data, tokenizer = get_data()
 parser = argparse.ArgumentParser()
 
 # Model selection, device selection
-parser.add_argument('--model', type=str, default="vae",
+parser.add_argument('--model', type=str, default="skip-vae",
                     help='Select model to use')
 parser.add_argument('--device', type=str, default=device,
                     help='Select which device to use')
