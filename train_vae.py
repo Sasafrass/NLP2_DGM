@@ -3,6 +3,7 @@
 from SentenceVAE import SentenceVAE
 from SkipVAE import SkipVAE
 from FreeBitsVAE import FreeBitsVAE
+from DropoutVAE import DropoutVAE
 
 # torch-y
 import torch
@@ -42,6 +43,8 @@ def train_VAE(train_loader,
         model = SkipVAE(vocab_size, config, z_dim=zdim) 
     elif(model_type == 'free'):
         model = FreeBitsVAE(vocab_size, config, z_dim=zdim) 
+    elif(model_type == 'drop'):
+        model = DropoutVAE(vocab_size, config, z_dim=zdim)
         
     print("Is this still cuda?: ", device)
     model = model.to(device)

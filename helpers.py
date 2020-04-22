@@ -60,21 +60,19 @@ def save_plot(train_curve, val_curve, epoch, config, KL=False):
 
     # Save, OS indifferent
     if(KL):
-        name = "{}_{}_{}_{}_{}_{}_KL.pdf".format(
+        name = "{}_{}_{}_{}_{}_KL.pdf".format(
             config['model'],
             config['num_epochs'],
             config['num_hidden'],
-            config['dropout_keep_rate'],
-            config['bidirectional'],
+            config['dropout'],
             config['learning_rate']
         )
     else:
-        name = "{}_{}_{}_{}_{}_{}_ELBO.pdf".format(
+        name = "{}_{}_{}_{}_{}_ELBO.pdf".format(
             config['model'],
             config['num_epochs'],
             config['num_hidden'],
-            config['dropout_keep_rate'],
-            config['bidirectional'],
+            config['dropout'],
             config['learning_rate']
         )
     fig.savefig(os.path.join(config['img_path'],name))
@@ -91,12 +89,11 @@ def save_model(model, config):
         os.makedirs(config['save_path'])
 
     # Get OS indifferent path
-    name = "{}_{}_{}_{}_{}_{}.pth".format(
+    name = "{}_{}_{}_{}_{}.pth".format(
         config['model'],
         config['num_epochs'],
         config['num_hidden'],
-        config['dropout_keep_rate'],
-        config['bidirectional'],
+        config['dropout'],
         config['learning_rate']
     )
     location = os.path.join(config['save_path'], name)
