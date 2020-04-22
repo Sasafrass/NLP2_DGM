@@ -41,7 +41,7 @@ train_data, validation_data, test_data, tokenizer = get_data()
 parser = argparse.ArgumentParser()
 
 # Model selection, device selection
-parser.add_argument('--model', type=str, default="vae",
+parser.add_argument('--model', type=str, default="dropout-vae",
                     help='Select model to use')
 parser.add_argument('--device', type=str, default=device,
                     help='Select which device to use')
@@ -68,12 +68,10 @@ parser.add_argument('--num_layers', type=int, default=1,
 parser.add_argument('--z_dim', type=int, default=13,
                     help='Latent space dimension')
 
-parser.add_argument('--dropout_keep_rate', type=float, default=0.7,
-                    help='Fraction of words to keep in word dropout')
+parser.add_argument('--dropout', type=float, default=1,
+                    help='Probability an input is dropped')
 parser.add_argument('--word_dropout', type=str2bool, default=False,
                     help='Flag to use word dropout or not')
-parser.add_argument('--bidirectional', type=bool, default=True,
-                    help='Encoder & decoder GRU bidirectionality')
 
 # Paths
 parser.add_argument('--save_path', type=str, default="models",
@@ -125,6 +123,10 @@ if config['model'] in ("rnnlm", "RNNLM", "RNNlm", "rnnLM"):
 elif config['model'] in ("VAE", "Vae", "vae"):
     config['model'] = 'vae'
     print("Training VAE now")
+    train_VAE(train_data, valid_data, test_data, config)
+elif config['model'] in ("Dropout-VAE, dropout-vae, dropout-VAE, DROPOUT-VAE"):
+    config['model'] = 'drop'
+    print('Training Dropout-VAE now')
     train_VAE(train_data, valid_data, test_data, config)
 elif config['model'] in ('FREEBITS-VAE, FreeBitsVAE, FreeBitsVae, FreeBits-VAE, FreeBits-Vae, FreeBits-vae, freebits-vae'):
     config['model'] = 'free'
