@@ -9,6 +9,7 @@ import torch.distributions as distributions
 import torch.nn.functional as F
 from torch.distributions.normal import Normal
 from torch.distributions.categorical import Categorical
+from torch.distributions.bernoulli import Bernoulli
 
 class Encoder(nn.Module):
     """
@@ -77,6 +78,46 @@ class Decoder(nn.Module):
 
         return out, hidden
 
+class Skip_Decoder(nn.Module):
+    """
+    Decoder module with skip connections
+
+    Args:
+        Input : Input, usually in batch
+        Hidden: Previous hidden state
+
+    Returns:
+        Out   : Output for current time step
+        Hidden: Hidden state for current time step
+    """
+
+    def __init__(self, vocab_size, embed_size, hidden_dim, config):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.num_hidden = config['num_hidden']
+        self.embed = nn.Embedding(vocab_size, embed_size)
+        # self.gru = nn.GRUCell(embed_size,hidden_dim)
+        self.gru = nn.GRU(embed_size,hidden_dim, batch_first=True)
+        self.h_lin = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.output = nn.Linear(hidden_dim,vocab_size)
+
+    def forward(self, input, hidden, z, device):
+        # Assumes a batch x sequence x features input
+        embedding = self.embed(input)
+        out = torch.zeros((input.shape[0], input.shape[1], self.hidden_dim)).to(device)
+
+        # Loop over all hidden states
+        # for i in range(input.shape[1]):
+        #     hidden = self.gru(embedding[:,i,:], hidden)
+        #     hidden = F.leaky_relu(self.h_lin(hidden) + z)
+        #     out[:,i,:] = hidden
+
+        out, hidden = self.gru.forward(embedding,hidden)
+        out = (self.h_lin(out) + z)
+        hidden = out[:,-1,:].unsqueeze(1)
+        out = self.output(out)
+
+        return out, hidden
 
 class SentenceVAE(nn.Module):
     """
@@ -89,21 +130,40 @@ class SentenceVAE(nn.Module):
         average_negative_elbo: This is the average negative elbo 
     """
 
-    def __init__(self, vocab_size, config, embed_size=464, hidden_dim=191, z_dim=13):
+    def __init__(self, vocab_size, config, embed_size, hidden_dim, z_dim):
         super().__init__()
+        # General SentenceVAE stuff
         self.z_dim = z_dim
         self.vocab_size = vocab_size
         self.encoder = Encoder(vocab_size, embed_size, hidden_dim, z_dim)
         self.upscale = nn.Linear(z_dim, hidden_dim)
         self.decoder = Decoder(vocab_size, embed_size, hidden_dim, config)
 
-    def forward(self, input, targets, lengths, device):
+        # Settings
+        self.skip = config['skip']
+        self.drop = config['drop']
+        self.free = config['free']
+
+        # Required for FreeBits
+        self.lamb = torch.ones(config['batch_size'],requires_grad=False) * config['lambda']
+        self.k = config['k']
+        
+        # Required for Dropout
+        self.k_prob = 1 - config['dropout']
+
+        # Required for Skip-VAE
+        self.z_lin = nn.Linear(z_dim, hidden_dim, bias=False)
+        self.skip_decoder = Skip_Decoder(vocab_size, embed_size, hidden_dim, config)
+
+
+    def forward(self, input, targets, device):
         """
         Given input, perform an encoding and decoding step and return the
         negative average elbo for the given batch.
         """
         batch_size = input.shape[0]
         seq_len = input.shape[1]
+        self.lamb = self.lamb.to(device)
 
         average_negative_elbo = None
         mean, std = self.encoder(input)
@@ -113,12 +173,42 @@ class SentenceVAE(nn.Module):
         sample_z = q_z.rsample()
 
         h_0 = torch.tanh(self.upscale(sample_z)).unsqueeze(0)
-        px_logits, _ = self.decoder(input,h_0)
+
+        if(self.drop):
+            # Mask the input
+            pads = (input != 0)
+            dropouts = Bernoulli(self.k_prob).sample(input.shape).long().to(device)
+            replacements = torch.zeros(input.shape).long().to(device) + 3
+            input = torch.where(dropouts==1, input, replacements)
+            input *= pads.long()
+
+        if(self.skip):
+            z = self.z_lin(sample_z).unsqueeze(1)
+            px_logits, _ = self.skip_decoder(input,h_0,z,device)
+        else:
+            px_logits, _ = self.decoder(input,h_0)
+
         p_x = Categorical(logits=px_logits)
         
-        prior = Normal(torch.zeros(self.z_dim).to(device),torch.ones(self.z_dim).to(device))
-        
-        KLD = distributions.kl_divergence(q_z, prior)
+        if(self.free):
+            # TODO: Divide the z-dim over self.k number of groups
+            prev = 0
+            KLD = 0
+            mean_split = torch.split(mean,self.k,dim=1)
+            std_split = torch.split(std,self.k,dim=1)
+            for i in range(len(mean_split)):
+                split_size = mean_split[i].shape[1]
+                q_z_j = Normal(mean_split[i],std_split[i])
+                prior = Normal(torch.zeros(split_size).to(device),torch.ones(split_size).to(device))
+                KL_k = distributions.kl_divergence(q_z_j, prior)
+                lamb = self.lamb[0:KL_k.shape[0]].repeat(split_size).view(KL_k.shape[0],-1)
+                maxes = torch.stack((lamb, KL_k),dim=0)
+                batch_KL, _ = torch.max(maxes,dim=0)
+                KLD += batch_KL
+                prev = prev + self.k
+        else:
+            prior = Normal(torch.zeros(self.z_dim).to(device),torch.ones(self.z_dim).to(device))
+            KLD = distributions.kl_divergence(q_z, prior)
 
         criterion =  nn.CrossEntropyLoss(ignore_index=0)
         recon_loss = criterion(p_x.logits.view(batch_size*seq_len,-1),targets.view(-1))*seq_len
@@ -141,8 +231,12 @@ class SentenceVAE(nn.Module):
 
         #The initial step
         input = current.to(device)
-        hidden = torch.tanh(self.upscale(sample_z))
-        output,hidden = self.decoder(input, hidden)
+        h_0 = torch.tanh(self.upscale(sample_z))
+        if(self.skip):
+            z = self.z_lin(sample_z)	
+            output,hidden = self.skip_decoder(input, h_0, z, device)
+        else:
+            output,hidden = self.decoder(input, h_0)
         current = output[0,-1,:].squeeze()
         if(sampling_strat == 'max'):
             guess = torch.argmax(current).unsqueeze(0)
@@ -154,7 +248,10 @@ class SentenceVAE(nn.Module):
         #Now that we have an h and c, we can start the loop
         i = 0
         while(i < 100):
-            output,hidden = self.decoder(input,hidden)
+            if(self.skip):
+                output,hidden = self.skip_decoder(input,hidden,z,device)
+            else:
+                output,hidden = self.decoder(input,hidden)
             current = output.squeeze()
             if(sampling_strat == 'max'):
                 guess = torch.argmax(current).unsqueeze(0)

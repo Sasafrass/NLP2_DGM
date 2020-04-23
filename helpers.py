@@ -60,18 +60,22 @@ def save_plot(train_curve, val_curve, epoch, config, KL=False):
 
     # Save, OS indifferent
     if(KL):
-        name = "{}_{}_{}_{}_{}_KL.pdf".format(
+        name = "{}_{}_{}_{}_{}_{}_{}_kl.png".format(
             config['model'],
             config['num_epochs'],
             config['num_hidden'],
+            config['lambda'],
+            config['k'],
             config['dropout'],
             config['learning_rate']
         )
     else:
-        name = "{}_{}_{}_{}_{}_ELBO.pdf".format(
+        name = "{}_{}_{}_{}_{}_{}_{}_elbo.png".format(
             config['model'],
             config['num_epochs'],
             config['num_hidden'],
+            config['lambda'],
+            config['k'],
             config['dropout'],
             config['learning_rate']
         )
@@ -89,10 +93,12 @@ def save_model(model, config):
         os.makedirs(config['save_path'])
 
     # Get OS indifferent path
-    name = "{}_{}_{}_{}_{}.pth".format(
+    name = "{}_{}_{}_{}_{}_{}_{}.pth".format(
         config['model'],
         config['num_epochs'],
         config['num_hidden'],
+        config['lambda'],
+        config['k'],
         config['dropout'],
         config['learning_rate']
     )
