@@ -156,7 +156,7 @@ class SentenceVAE(nn.Module):
         self.skip_decoder = Skip_Decoder(vocab_size, embed_size, hidden_dim, config)
 
 
-    def forward(self, input, targets, device):
+    def forward(self, input, targets, seq_lens, device):
         """
         Given input, perform an encoding and decoding step and return the
         negative average elbo for the given batch.
@@ -211,12 +211,59 @@ class SentenceVAE(nn.Module):
             KLD = distributions.kl_divergence(q_z, prior)
 
         criterion =  nn.CrossEntropyLoss(ignore_index=0)
-        recon_loss = criterion(p_x.logits.view(batch_size*seq_len,-1),targets.view(-1))*seq_len
+        recon_loss = criterion(px_logits.view(batch_size*seq_len,-1),targets.view(-1))*torch.mean(seq_lens.float())
         average_negative_elbo = torch.sum(torch.mean(KLD,dim=0)) + recon_loss
         
         return average_negative_elbo, KLD
 
     def sample(self, tokenizer, device, sampling_strat='max', temperature=1, starting_text=[1]):
+        """
+        Function that allows us to sample a new sentence for the VAE
+        """
+        assert sampling_strat in ('max', 'rand')
+
+        # Start with encoded text
+        start = np.array(starting_text)
+        text = list(start) #This stores the eventual output
+        current = torch.from_numpy(start).long().view(1,-1)
+        q_z = Normal(torch.zeros(self.z_dim),torch.ones(self.z_dim))
+        sample_z = q_z.rsample().view(1,1,-1).to(device)
+
+        #The initial step
+        input = current.to(device)
+        h_0 = torch.tanh(self.upscale(sample_z))
+        if(self.skip):
+            z = self.z_lin(sample_z)	
+            output,hidden = self.skip_decoder(input, h_0, z, device)
+        else:
+            output,hidden = self.decoder(input, h_0)
+        current = output[0,-1,:].squeeze()
+        if(sampling_strat == 'max'):
+            guess = torch.argmax(current).unsqueeze(0)
+        elif(sampling_strat == 'rand'):
+            guess = torch.multinomial(F.softmax(temperature*current,dim=0),1)
+        text.append(guess.item())
+        input = guess.unsqueeze(0)
+
+        #Now that we have an h and c, we can start the loop
+        i = 0
+        while(i < 100):
+            if(self.skip):
+                output,hidden = self.skip_decoder(input,hidden,z,device)
+            else:
+                output,hidden = self.decoder(input,hidden)
+            current = output.squeeze()
+            if(sampling_strat == 'max'):
+                guess = torch.argmax(current).unsqueeze(0)
+            elif(sampling_strat == 'rand'):
+                guess = torch.multinomial(F.softmax(temperature*current,dim=0),1)
+            text.append(guess.item())
+            input = guess.unsqueeze(0)
+            i += 1
+            if(guess.item() == 2):
+                break
+
+        return tokenizer.decode(text)
         """
         Function that allows us to sample a new sentence for the VAE
         """

@@ -49,8 +49,8 @@ def train_VAE(train_loader,
         
     print("Is this still cuda?: ", device)
     model = model.to(device)
-    sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)
-    print(sample)
+    # sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)
+    # print(sample)
 
     # Optimizer and statistics
     optimizer = Adam(model.parameters())
@@ -100,18 +100,18 @@ def epoch_iter(model, data, optimizer, device):
     total_KL = 0
     iterations = 0
     if(model.training):
-        for step, (inputs, targets, _) in enumerate(data):
+        for step, (inputs, targets, lengths) in enumerate(data):
             optimizer.zero_grad()
-            batch_elbo, batch_KL = model(inputs.to(device), targets.to(device), device)
+            batch_elbo, batch_KL = model(inputs.to(device), targets.to(device), torch.tensor(lengths).to(device), device)
             batch_elbo.backward()
             optimizer.step()
             iterations = step
             total_elbo += batch_elbo.detach()
             total_KL += torch.mean(batch_KL.detach())
     else:
-        for step, (inputs, targets, _) in enumerate(data):
+        for step, (inputs, targets, lengths) in enumerate(data):
             with torch.no_grad():
-                batch_elbo, batch_KL = model(inputs.to(device), targets.to(device), device)
+                batch_elbo, batch_KL = model(inputs.to(device), targets.to(device), torch.tensor(lengths).to(device), device)
                 iterations = step
                 total_elbo += batch_elbo.detach()
                 total_KL += torch.mean(batch_KL.detach())
