@@ -2,7 +2,6 @@
 # System imports
 import os
 import time
-from datetime import datetime
 
 # Numerical imports
 import numpy as np
@@ -43,7 +42,7 @@ def train_rnnlm(config, train_data, valid_data, tokenizer):
     if(not makeNew and modelpath != ""):
         model = (torch.load(modelpath))
     else:
-        model = RNNLM(config['vocab_size'],config['num_hidden'],config['num_layers'],device)
+        model = RNNLM(config['vocab_size'],config['embedding_size'],config['num_hidden']).to(device)
 
     # Setup the loss and optimizer
     criterion = torch.nn.CrossEntropyLoss(ignore_index=0)
@@ -53,129 +52,61 @@ def train_rnnlm(config, train_data, valid_data, tokenizer):
     if(not makeNew and optimpath != ""):
         optimizer.load_state_dict(torch.load(optimpath))
 
-    accs = []
     losses = []
-    curr_accs = []
-    curr_losses = []
-    print_steps = []
-    convergence = False
-    conv_count = 0
-    prev_loss = np.inf
 
-    iteration = 0
-    epoch = 0
-    while(not convergence):
+    for epoch in range(config['num_epochs']):
         print("Epoch: " + str(epoch))
         loss = 0
-        accuracy = 0
-        for step, (batch_inputs, batch_targets, lengths) in enumerate(train_data):
-            # Only for time measurement of step through network
-            t1 = time.time()
-            optimizer.zero_grad()
-            targets = batch_targets.to(device)
-            out,_ = model.forward(batch_inputs)
-
-            #Calculate loss and accuracy
-            curr_loss = 0
-            curr_acc = 0
-            cor = 0
-
-            seq_length = batch_inputs.shape[1]
-
-            # Get average original lenghts of sentences to divide total loss by
-            orig_lengths = torch.mean(torch.argmin(batch_inputs,dim=1).float())
-
-            for i in range(seq_length):
-                out_t = out[:,i,:]
-                targets_t = targets[:,i]
-                curr_loss += criterion.forward(out_t, targets_t)
-                preds = (torch.argmax(out_t,dim=1)).long()
-                cor += targets_t.eq(preds).sum().item()
-            curr_acc = cor/(seq_length * targets.size()[0])
-            loss += curr_loss.item()
-            accuracy += curr_acc
-
-            curr_loss.backward()
-            
-            #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['max_norm'])
-
-            optimizer.step()
-            
-            curr_accs.append(curr_acc)
-            curr_losses.append(curr_loss.item())
-
-            # Just for time measurement
-            t2 = time.time()
-            examples_per_second = config['batch_size']/float(t2-t1)
-            if(iteration % config['print_every'] == 0):
-                loss_std = np.std(curr_losses)
-                print("[{}] Epoch {:04d}, Train Step {:04d}, Batch Size = {}, Examples/Sec = {:.2f}, "
-                    "Avg. Accuracy = {:.2f}, Avg. Loss = {:.3f}, Loss STD = {:.3f}".format(
-                        datetime.now().strftime("%Y-%m-%d %H:%M"), epoch, iteration,
-                        config['batch_size'], examples_per_second,
-                        accuracy/config['print_every'], loss/config['print_every'], loss_std
-                ))
-                accs.append(accuracy/config['print_every'])
-                losses.append(loss/config['print_every'])
-                print_steps.append(iteration)
-                if(np.abs(prev_loss/config['print_every'] - loss/config['print_every']) < 0.001):
-                    conv_count += 1
-                else:
-                    conv_count = 0
-                convergence = conv_count == 5
-                prev_loss = loss
-                accuracy = 0
-                loss = 0
-            #Generate text
-            if iteration % config['sample_every'] == 0:
-                model.eval()
-                with torch.no_grad():
-                    text = generate_text(model,device, tokenizer,config['sample_strat'],config['sample_temp'])
-                    print(str(iteration), ": ", text)
-                model.train()
-                '''                if(modelpath != ""):
-                    torch.save(model,modelpath)
-                if(optimpath != ""):
-                    torch.save(optimizer.state_dict(),optimpath)'''
-            iteration += 1
-
-        #TODO: Validate
-        model.eval()
-        iter = 0
-        for step, (batch_inputs, batch_targets, lengths) in enumerate(valid_data):
-            targets = batch_targets.to(device)
-            out,_ = model.forward(batch_inputs)
-            #Calculate loss and accuracy
-            curr_loss = 0
-            curr_acc = 0
-            cor = 0
-
-            seq_length = batch_inputs.shape[1]
-
-            # Get average original lenghts of sentences to divide total loss by
-            orig_lengths = torch.mean(torch.argmin(batch_inputs,dim=1).float())
-
-            for i in range(seq_length):
-                out_t = out[:,i,:]
-                targets_t = targets[:,i]
-                curr_loss += criterion.forward(out_t, targets_t)
-                preds = (torch.argmax(out_t,dim=1)).long()
-                cor += targets_t.eq(preds).sum().item()
-            curr_acc = cor/(seq_length * targets.size()[0])
-            loss += curr_loss.item()
-            accuracy += curr_acc
-            curr_accs.append(curr_acc)
-            curr_losses.append(curr_loss.item())
-            iter += 1
-        loss_std = np.std(curr_losses)
-        print("Epoch {:04d}, Validation, Avg. Accuracy = {:.2f}, Avg. Loss = {:.3f}, Loss STD = {:.3f}".format(
-                epoch, accuracy/iter, loss/iter, loss_std))
         model.train()
-        epoch += 1
-        if(epoch == config['num_epochs'] or convergence):
-            break
+        for step, (batch_inputs, batch_targets, _) in enumerate(train_data):
+            optimizer.zero_grad()
+            curr_loss = calc_loss(model, criterion, batch_inputs, batch_targets, device)
+            loss += curr_loss.item()
+            curr_loss.backward()
+            optimizer.step()
+
+        print("Epoch {:04d}, Batch Size = {}, Avg. Loss = {:.3f}".format(epoch, config['batch_size'], loss/step))
+        losses.append(loss/step)
+        loss = 0
+
+        #Generate text
+        model.eval()
+        with torch.no_grad():
+            text = generate_text(model,device, tokenizer,config['sample_strat'],config['sample_temp'])
+            print(text)
+
+        '''                if(modelpath != ""):
+            torch.save(model,modelpath)
+        if(optimpath != ""):
+            torch.save(optimizer.state_dict(),optimpath)'''
+
+        for step, (batch_inputs, batch_targets, _) in enumerate(valid_data):
+            curr_loss = calc_loss(model, criterion, batch_inputs, batch_targets, device)
+            loss += curr_loss.item()
+
+        print("Epoch {:04d}, Validation, Avg. Loss = {:.3f}".format(epoch, loss/step))
 
     print('Done training.')
-    print(accs)
     print(losses)
-    print(print_steps)
+
+def calc_loss(model, criterion, batch_inputs, batch_targets, device):
+    targets = batch_targets.to(device)
+    out,_ = model(batch_inputs.to(device))
+
+    seq_length = batch_inputs.shape[1]
+    batch_size = batch_inputs.shape[0]
+    curr_loss = criterion(out.view(batch_size*seq_length,-1),targets.view(-1))*seq_length
+    return curr_loss
+
+def calc_loss_old(model, criterion, batch_inputs, batch_targets, device):
+    targets = batch_targets.to(device)
+    out,_ = model(batch_inputs.to(device))
+
+    curr_loss = 0
+    seq_length = batch_inputs.shape[1]
+
+    for i in range(seq_length):
+        out_t = out[:,i,:]
+        targets_t = targets[:,i]
+        curr_loss += criterion(out_t, targets_t)
+    return curr_loss

@@ -49,7 +49,7 @@ parser.add_argument('--device', type=str, default=device,
 # Standard model parameters
 parser.add_argument('--learning_rate', type=float, default=2e-3,
                     help='Learning rate')
-parser.add_argument('--num_epochs', type=int, default=2,
+parser.add_argument('--num_epochs', type=int, default=3,
                     help='Number of epochs to train for')
 parser.add_argument('--batch_size', type=int, default=64,
                     help='The batch size of our model')
