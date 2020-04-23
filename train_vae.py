@@ -55,6 +55,7 @@ def train_VAE(train_loader,
     optimizer = Adam(model.parameters())
     train_curve, val_curve = [], []
     train_kl_curve, val_kl_curve = [], []
+    print_telbo, print_velbo, print_tkl, print_vkl = [], [], [], []
 
     for epoch in range(epochs):
         print('Epoch', epoch)
@@ -68,11 +69,23 @@ def train_VAE(train_loader,
         print("[Epoch {}] train neg elbo: {} train KL: {}, val neg elbo: {} val kl: {}".format(epoch,train_elbo,train_kl,val_elbo,val_kl))
         sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)
         print(sample)
+        print_telbo.append(train_elbo.item())
+        print_velbo.append(val_elbo.item())
+        print_tkl.append(train_kl.item())
+        print_vkl.append(val_kl.item())
 
     # Save ELBO and KL plot and save the model
     save_plot(train_curve, val_curve, epoch, config)
     save_plot(train_kl_curve, val_kl_curve, epoch, config, True)
     save_model(model, config)
+    print("Train ELBO:")
+    print(print_telbo)
+    print("Validation ELBO:")
+    print(print_velbo)
+    print("Train KL:")
+    print(print_tkl)
+    print("Validation KL:")
+    print(print_vkl)
 
 def epoch_iter(model, data, optimizer, device):
     """
