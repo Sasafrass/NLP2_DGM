@@ -143,7 +143,7 @@ test_data  = DataLoader(test_data, batch_size=config['batch_size'], shuffle=Fals
 print(config['model'])
 if config['model'] in ("rnnlm", "RNNLM", "RNNlm", "rnnLM"):
     print("Training RNNLM now")
-    train_rnnlm(config, train_data, validation_data, tokenizer) 
+    train_rnnlm(config, train_data, valid_data, tokenizer) 
 elif config['model'] in ("VAE", "Vae", "vae"):
     config['model'] = 'vae'
     if(config['skip']):
