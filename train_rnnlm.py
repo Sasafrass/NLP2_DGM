@@ -68,7 +68,7 @@ def train_rnnlm(config, train_data, valid_data, tokenizer):
         print("Epoch: " + str(epoch))
         loss = 0
         accuracy = 0
-        for step, (batch_inputs, batch_targets) in enumerate(train_data):
+        for step, (batch_inputs, batch_targets, lengths) in enumerate(train_data):
             # Only for time measurement of step through network
             t1 = time.time()
             optimizer.zero_grad()
@@ -97,7 +97,7 @@ def train_rnnlm(config, train_data, valid_data, tokenizer):
 
             curr_loss.backward()
             
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['max_norm'])
+            #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['max_norm'])
 
             optimizer.step()
             
@@ -130,7 +130,7 @@ def train_rnnlm(config, train_data, valid_data, tokenizer):
             if iteration % config['sample_every'] == 0:
                 model.eval()
                 with torch.no_grad():
-                    text = generate_text(model,device,config['sample_strat'],config['sample_temp'])
+                    text = generate_text(model,device, tokenizer,config['sample_strat'],config['sample_temp'])
                     print(str(iteration), ": ", text)
                 model.train()
                 '''                if(modelpath != ""):
@@ -142,7 +142,7 @@ def train_rnnlm(config, train_data, valid_data, tokenizer):
         #TODO: Validate
         model.eval()
         iter = 0
-        for step, (batch_inputs, batch_targets) in enumerate(valid_data):
+        for step, (batch_inputs, batch_targets, lengths) in enumerate(valid_data):
             targets = batch_targets.to(device)
             out,_ = model.forward(batch_inputs)
             #Calculate loss and accuracy
@@ -172,7 +172,7 @@ def train_rnnlm(config, train_data, valid_data, tokenizer):
                 epoch, accuracy/iter, loss/iter, loss_std))
         model.train()
         epoch += 1
-        if(epoch == config['epochs'] or convergence):
+        if(epoch == config['num_epochs'] or convergence):
             break
 
     print('Done training.')
