@@ -41,7 +41,7 @@ train_data, validation_data, test_data, tokenizer = get_data()
 parser = argparse.ArgumentParser()
 
 # Model selection, device selection
-parser.add_argument('--model', type=str, default="skip-vae",
+parser.add_argument('--model', type=str, default="vae",
                     help='Select model to use')
 parser.add_argument('--device', type=str, default=device,
                     help='Select which device to use')
@@ -59,19 +59,31 @@ parser.add_argument('--learning_rate_decay', type=int, default=0.96,
                     help='Learning rate decay')
 
 # GRU Parameters
-parser.add_argument('--num_hidden', type=int, default=128,
+parser.add_argument('--num_hidden', type=int, default=1024,
                     help='Number of hidden units in selected LSTM model')
 parser.add_argument('--num_layers', type=int, default=1,
                     help='Number of layers')
+parser.add_argument('--embedding_size', type=int, default=512,
+                    help='Size of the embeddings')
+
+# VAE settings
+parser.add_argument('--drop', type=str2bool, default=False,
+                    help='Flag to use word dropout or not')
+parser.add_argument('--free', type=str2bool, default=False,
+                    help='Flag to use FreeBits-VAE or not')
+parser.add_argument('--skip', type=str2bool, default=False,
+                    help='Flag to use Skip-VAE or not')
 
 # VAE Parameters
-parser.add_argument('--z_dim', type=int, default=13,
+parser.add_argument('--z_dim', type=int, default=32,
                     help='Latent space dimension')
-
-parser.add_argument('--dropout', type=float, default=1,
+parser.add_argument('--dropout', type=float, default=0.5,
                     help='Probability an input is dropped')
-parser.add_argument('--word_dropout', type=str2bool, default=False,
-                    help='Flag to use word dropout or not')
+parser.add_argument('--lambda', type=float, default=0.5,
+                    help='Value of lambda for FreeBits')
+parser.add_argument('--k', type=int, default=1,
+                    help='Groupsize used when performing FreeBits')
+
 
 # Paths
 parser.add_argument('--save_path', type=str, default="models",
@@ -88,7 +100,7 @@ parser.add_argument('--img_path', type=str, default="img",
                     help='Select from where to load the model')
 
 # Model saving
-parser.add_argument('--new_model', type=bool, default=True,
+parser.add_argument('--new_model', type=str2bool, default=True,
                     help='Select from where to load the model')
 
 # Printing and sampling
@@ -108,7 +120,19 @@ parser.add_argument('--sample_temp', type=int, default=1.5,
 args = parser.parse_args()
 config = vars(args)
 config['tokenizer'] = tokenizer
-print("Word dropout: ", config['word_dropout'])
+if(config['k'] > config['batch_size']):
+    print("k was larger than batch_size, is now equal")
+    config['k'] = config['batch_size']
+elif(config['k'] <= 0):
+    print('k was smaller than or equal to 0, freebits is now turned off')
+    config['free'] = False
+if(config['drop'] and config['dropout'] <= 0):
+    print('dropout was smaller than or equal to 0, is now turned off')
+    config['drop'] = False
+
+print("Skip-Vae:", config['skip'])
+print("Word dropout:", config['drop'])
+print("FreeBits:", config['free'])
 
 # Make trainloaders
 train_data = DataLoader(train_data, batch_size=config['batch_size'], shuffle=True, collate_fn=padded_collate)
@@ -122,19 +146,25 @@ if config['model'] in ("rnnlm", "RNNLM", "RNNlm", "rnnLM"):
     train_rnnlm(config, train_data, validation_data, tokenizer) 
 elif config['model'] in ("VAE", "Vae", "vae"):
     config['model'] = 'vae'
-    print("Training VAE now")
+    if(config['skip']):
+        config['model'] = config['model'] + '_s'
+    if(config['drop']):
+        config['model'] = config['model'] + '_d'
+    if(config['free']):
+        config['model'] = config['model'] + '_f'
+    print("Training", config['model'],"now")
     train_VAE(train_data, valid_data, test_data, config)
-elif config['model'] in ("Dropout-VAE, dropout-vae, dropout-VAE, DROPOUT-VAE"):
-    config['model'] = 'drop'
-    print('Training Dropout-VAE now')
-    train_VAE(train_data, valid_data, test_data, config)
-elif config['model'] in ('FREEBITS-VAE, FreeBitsVAE, FreeBitsVae, FreeBits-VAE, FreeBits-Vae, FreeBits-vae, freebits-vae'):
-    config['model'] = 'free'
-    print("Training FreeBits-VAE now")
-    train_VAE(train_data, valid_data, test_data, config)
-elif config['model'] in ("SKIP-VAE", "Skip-VAE", "Skip-Vae", "Skip-vae", "skip-VAE", "skip-Vae", "skip-vae"):
-    config['model'] = 'skip'
-    print("Training Skip-VAE now")
-    train_VAE(train_data, valid_data, test_data, config)
+# elif config['model'] in ("Dropout-VAE, dropout-vae, dropout-VAE, DROPOUT-VAE"):
+#     config['model'] = 'drop'
+#     print('Training Dropout-VAE now')
+#     train_VAE(train_data, valid_data, test_data, config)
+# elif config['model'] in ('FREEBITS-VAE, FreeBitsVAE, FreeBitsVae, FreeBits-VAE, FreeBits-Vae, FreeBits-vae, freebits-vae'):
+#     config['model'] = 'free'
+#     print("Training FreeBits-VAE now")
+#     train_VAE(train_data, valid_data, test_data, config)
+# elif config['model'] in ("SKIP-VAE", "Skip-VAE", "Skip-Vae", "Skip-vae", "skip-VAE", "skip-Vae", "skip-vae"):
+#     config['model'] = 'skip'
+#     print("Training Skip-VAE now")
+#     train_VAE(train_data, valid_data, test_data, config)
 else:
-    raise ValueError("Please choose SKIP-VAE, FreeBits-VAE, VAE or RNNLM")
+    raise ValueError("Please choose VAE or RNNLM")

@@ -28,23 +28,24 @@ def train_VAE(train_loader,
     """
 
     # Get necessary parameters from config
-    model_type = config['model']
     device = config['device']
     epochs = config['num_epochs']
-    zdim = config['z_dim']
-    batch_size = config['batch_size']
     vocab_size = config['vocab_size']
+    embed_size = config['embedding_size']
+    hidden_size = config['num_hidden']
+    zdim = config['z_dim']
     tokenizer  = config['tokenizer']
 
-    # Instantiate model and make it CUTA
-    if(model_type == 'vae'):
-        model = SentenceVAE(vocab_size, config, z_dim=zdim) 
-    elif(model_type == 'skip'):
-        model = SkipVAE(vocab_size, config, z_dim=zdim) 
-    elif(model_type == 'free'):
-        model = FreeBitsVAE(vocab_size, config, z_dim=zdim) 
-    elif(model_type == 'drop'):
-        model = DropoutVAE(vocab_size, config, z_dim=zdim)
+    # Instantiate model
+    model = SentenceVAE(vocab_size, config, embed_size, hidden_size, zdim) 
+    # if(model_type == 'vae'):
+    #     model = SentenceVAE(vocab_size, config, z_dim=zdim) 
+    # elif(model_type == 'skip'):
+    #     model = SkipVAE(vocab_size, config, z_dim=zdim) 
+    # elif(model_type == 'free'):
+    #     model = FreeBitsVAE(vocab_size, config, z_dim=zdim) 
+    # elif(model_type == 'drop'):
+    #     model = DropoutVAE(vocab_size, config, z_dim=zdim)
         
     print("Is this still cuda?: ", device)
     model = model.to(device)
@@ -99,18 +100,18 @@ def epoch_iter(model, data, optimizer, device):
     total_KL = 0
     iterations = 0
     if(model.training):
-        for step, (inputs, targets, lengths) in enumerate(data):
+        for step, (inputs, targets, _) in enumerate(data):
             optimizer.zero_grad()
-            batch_elbo, batch_KL = model(inputs.to(device), targets.to(device), lengths, device)
+            batch_elbo, batch_KL = model(inputs.to(device), targets.to(device), device)
             batch_elbo.backward()
             optimizer.step()
             iterations = step
             total_elbo += batch_elbo.detach()
             total_KL += torch.mean(batch_KL.detach())
     else:
-        for step, (inputs, targets, lengths) in enumerate(data):
+        for step, (inputs, targets, _) in enumerate(data):
             with torch.no_grad():
-                batch_elbo, batch_KL = model(inputs.to(device), targets.to(device), lengths, device)
+                batch_elbo, batch_KL = model(inputs.to(device), targets.to(device), device)
                 iterations = step
                 total_elbo += batch_elbo.detach()
                 total_KL += torch.mean(batch_KL.detach())

@@ -13,7 +13,6 @@ from torch.distributions.categorical import Categorical
 class Encoder(nn.Module):
     """
     Encoder module part of a VAE
-
     Returns:
         mean: Means of size z_dim for approximate posterior 
         std : Standard deviations of size z_dim for approximate posterior
@@ -32,7 +31,6 @@ class Encoder(nn.Module):
     def forward(self, input):
         """
         Perform forward pass of encoder.
-
         Returns mean and std with shape [batch_size, z_dim].
         """
         mean, std = None, None
@@ -120,7 +118,7 @@ class SkipVAE(nn.Module):
         """
         batch_size = input.shape[0]
         seq_len = input.shape[1]
-
+        
         average_negative_elbo = None
         mean, std = self.encoder(input)
         
