@@ -67,7 +67,8 @@ class Decoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_hidden = config['num_hidden']
         self.embed = nn.Embedding(vocab_size, embed_size)
-        self.gru = nn.GRUCell(embed_size,hidden_dim)
+        # self.gru = nn.GRUCell(embed_size,hidden_dim)
+        self.gru = nn.GRU(embed_size,hidden_dim, batch_first=True)
         self.h_lin = nn.Linear(hidden_dim, hidden_dim, bias=False)
         self.output = nn.Linear(hidden_dim,vocab_size)
 
@@ -77,11 +78,14 @@ class Decoder(nn.Module):
         out = torch.zeros((input.shape[0], input.shape[1], self.hidden_dim)).to(device)
 
         # Loop over all hidden states
-        for i in range(input.shape[1]):
-            hidden = self.gru(embedding[:,i,:], hidden)
-            out[:,i,:] = hidden
-            hidden = F.leaky_relu(self.h_lin(hidden) + z)
+        # for i in range(input.shape[1]):
+        #     hidden = self.gru(embedding[:,i,:], hidden)
+        #     hidden = F.leaky_relu(self.h_lin(hidden) + z)
+        #     out[:,i,:] = hidden
 
+        out, hidden = self.gru.forward(embedding,hidden)
+        out = (self.h_lin(out) + z)
+        hidden = out[:,-1,:].unsqueeze(1)
         out = self.output(out)
 
         return out, hidden
@@ -122,10 +126,10 @@ class SkipVAE(nn.Module):
         
         #Reparameterization trick
         q_z = Normal(mean,std)
-        sample_z = q_z.rsample().squeeze(0)
+        sample_z = q_z.rsample()
 
-        h_0 = torch.tanh(self.upscale(sample_z))
-        z = self.z_lin(sample_z)
+        h_0 = torch.tanh(self.upscale(sample_z)).unsqueeze(0)
+        z = self.z_lin(sample_z).unsqueeze(1)
         px_logits, _ = self.decoder(input,h_0,z,device)
         p_x = Categorical(logits=px_logits)
         
@@ -152,7 +156,7 @@ class SkipVAE(nn.Module):
         current = torch.from_numpy(start).long().view(1,-1)
         input = current.to(device)
         q_z = Normal(torch.zeros(self.z_dim),torch.ones(self.z_dim))
-        sample_z = q_z.rsample().view(1,-1).to(device)
+        sample_z = q_z.rsample().view(1,1,-1).to(device)
 
         #The initial step
         h_0 = torch.tanh(self.upscale(sample_z))
