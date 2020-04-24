@@ -59,11 +59,11 @@ parser.add_argument('--learning_rate_decay', type=int, default=0.96,
                     help='Learning rate decay')
 
 # GRU Parameters
-parser.add_argument('--num_hidden', type=int, default=1024,
+parser.add_argument('--num_hidden', type=int, default=191,
                     help='Number of hidden units in selected LSTM model')
 parser.add_argument('--num_layers', type=int, default=1,
                     help='Number of layers')
-parser.add_argument('--embedding_size', type=int, default=512,
+parser.add_argument('--embedding_size', type=int, default=464,
                     help='Size of the embeddings')
 
 # VAE settings
@@ -75,7 +75,7 @@ parser.add_argument('--skip', type=str2bool, default=False,
                     help='Flag to use Skip-VAE or not')
 
 # VAE Parameters
-parser.add_argument('--z_dim', type=int, default=32,
+parser.add_argument('--z_dim', type=int, default=13,
                     help='Latent space dimension')
 parser.add_argument('--dropout', type=float, default=0.5,
                     help='Probability an input is dropped')
@@ -116,6 +116,12 @@ parser.add_argument('--sample_strat', type=str, default='rand',
 parser.add_argument('--sample_temp', type=int, default=1.5,
                     help='Sampling temperature vs greedy sampling')
 
+parser.add_argument('--sample_topic', type=str, default="shops hit by biggest slump on record .",
+                    help='due to a decrease in funding , students of cambridge university had to borrow books from the local library')
+
+'''parser.add_argument('--sample_topic', type=str, default="the video conferencing platform zoom has released a new update this week in an effort to address a problem of security concerns surrounding the service .",
+                    help='Sampling topic that the latent variable should come to represent')'''
+
 # Parse the arguments, get dictionary and add tokenizer
 args = parser.parse_args()
 config = vars(args)
@@ -140,7 +146,6 @@ valid_data = DataLoader(validation_data, batch_size=config['batch_size'], shuffl
 test_data  = DataLoader(test_data, batch_size=config['batch_size'], shuffle=False, collate_fn=padded_collate)
 
 # Run
-print(config['model'])
 if config['model'] in ("rnnlm", "RNNLM", "RNNlm", "rnnLM"):
     print("Training RNNLM now")
     train_rnnlm(config, train_data, valid_data, tokenizer) 
@@ -154,17 +159,5 @@ elif config['model'] in ("VAE", "Vae", "vae"):
         config['model'] = config['model'] + '_f'
     print("Training", config['model'],"now")
     train_VAE(train_data, valid_data, test_data, config)
-# elif config['model'] in ("Dropout-VAE, dropout-vae, dropout-VAE, DROPOUT-VAE"):
-#     config['model'] = 'drop'
-#     print('Training Dropout-VAE now')
-#     train_VAE(train_data, valid_data, test_data, config)
-# elif config['model'] in ('FREEBITS-VAE, FreeBitsVAE, FreeBitsVae, FreeBits-VAE, FreeBits-Vae, FreeBits-vae, freebits-vae'):
-#     config['model'] = 'free'
-#     print("Training FreeBits-VAE now")
-#     train_VAE(train_data, valid_data, test_data, config)
-# elif config['model'] in ("SKIP-VAE", "Skip-VAE", "Skip-Vae", "Skip-vae", "skip-VAE", "skip-Vae", "skip-vae"):
-#     config['model'] = 'skip'
-#     print("Training Skip-VAE now")
-#     train_VAE(train_data, valid_data, test_data, config)
 else:
     raise ValueError("Please choose VAE or RNNLM")

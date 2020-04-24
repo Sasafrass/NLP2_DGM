@@ -11,6 +11,7 @@ from torch.optim import Adam
 
 # Own classes and helpers
 from helpers import save_plot, save_model
+from perplexity import perplexity
 
 #
 def train_VAE(train_loader, 
@@ -38,14 +39,6 @@ def train_VAE(train_loader,
 
     # Instantiate model
     model = SentenceVAE(vocab_size, config, embed_size, hidden_size, zdim) 
-    # if(model_type == 'vae'):
-    #     model = SentenceVAE(vocab_size, config, z_dim=zdim) 
-    # elif(model_type == 'skip'):
-    #     model = SkipVAE(vocab_size, config, z_dim=zdim) 
-    # elif(model_type == 'free'):
-    #     model = FreeBitsVAE(vocab_size, config, z_dim=zdim) 
-    # elif(model_type == 'drop'):
-    #     model = DropoutVAE(vocab_size, config, z_dim=zdim)
         
     print("Is this still cuda?: ", device)
     model = model.to(device)
@@ -60,14 +53,15 @@ def train_VAE(train_loader,
 
     for epoch in range(epochs):
         print('Epoch', epoch)
-        elbos, KLs = run_epoch(model, (train_loader, valid_loader), optimizer, device) #TODO: Do something with the KLs
+        elbos, KLs = run_epoch(model, (train_loader, valid_loader), optimizer, device)
+        perplex = perplexity(model,valid_loader,device)
         train_elbo, val_elbo = elbos
         train_kl, val_kl = KLs
         train_curve.append(train_elbo)
         val_curve.append(val_elbo)
         train_kl_curve.append(train_kl)
         val_kl_curve.append(val_kl)
-        print("[Epoch {}] train neg elbo: {} train KL: {}, val neg elbo: {} val kl: {}".format(epoch,train_elbo,train_kl,val_elbo,val_kl))
+        print("[Epoch {}] train neg elbo: {} train KL: {}, val neg elbo: {} val kl: {}, perplexity: {}".format(epoch,train_elbo,train_kl,val_elbo,val_kl, perplex))
         sample = model.sample(device=device, sampling_strat='rand', tokenizer = tokenizer)
         print(sample)
         print_telbo.append(train_elbo.item())

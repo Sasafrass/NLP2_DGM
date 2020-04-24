@@ -138,6 +138,7 @@ class SentenceVAE(nn.Module):
         self.encoder = Encoder(vocab_size, embed_size, hidden_dim, z_dim)
         self.upscale = nn.Linear(z_dim, hidden_dim)
         self.decoder = Decoder(vocab_size, embed_size, hidden_dim, config)
+        self.topic = torch.tensor(config['tokenizer'].encode(config['sample_topic']))
 
         # Settings
         self.skip = config['skip']
@@ -174,7 +175,7 @@ class SentenceVAE(nn.Module):
 
         h_0 = torch.tanh(self.upscale(sample_z)).unsqueeze(0)
 
-        if(self.drop):
+        if(self.drop and self.training):
             # Mask the input
             pads = (input != 0)
             dropouts = Bernoulli(self.k_prob).sample(input.shape).long().to(device)
@@ -190,7 +191,7 @@ class SentenceVAE(nn.Module):
 
         p_x = Categorical(logits=px_logits)
         
-        if(self.free):
+        if(self.free and self.training):
             # TODO: Divide the z-dim over self.k number of groups
             prev = 0
             KLD = 0
@@ -210,8 +211,9 @@ class SentenceVAE(nn.Module):
             prior = Normal(torch.zeros(self.z_dim).to(device),torch.ones(self.z_dim).to(device))
             KLD = distributions.kl_divergence(q_z, prior)
 
-        criterion =  nn.CrossEntropyLoss(ignore_index=0)
-        recon_loss = criterion(px_logits.view(batch_size*seq_len,-1),targets.view(-1))*torch.mean(seq_lens.float())
+        criterion =  nn.CrossEntropyLoss(ignore_index=0,reduction='sum')
+        recon_loss = criterion(px_logits.view(batch_size*seq_len,-1),targets.view(-1))
+        recon_loss /= batch_size
         average_negative_elbo = torch.sum(torch.mean(KLD,dim=0)) + recon_loss
         
         return average_negative_elbo, KLD
@@ -226,54 +228,9 @@ class SentenceVAE(nn.Module):
         start = np.array(starting_text)
         text = list(start) #This stores the eventual output
         current = torch.from_numpy(start).long().view(1,-1)
-        q_z = Normal(torch.zeros(self.z_dim),torch.ones(self.z_dim))
-        sample_z = q_z.rsample().view(1,1,-1).to(device)
-
-        #The initial step
-        input = current.to(device)
-        h_0 = torch.tanh(self.upscale(sample_z))
-        if(self.skip):
-            z = self.z_lin(sample_z)	
-            output,hidden = self.skip_decoder(input, h_0, z, device)
-        else:
-            output,hidden = self.decoder(input, h_0)
-        current = output[0,-1,:].squeeze()
-        if(sampling_strat == 'max'):
-            guess = torch.argmax(current).unsqueeze(0)
-        elif(sampling_strat == 'rand'):
-            guess = torch.multinomial(F.softmax(temperature*current,dim=0),1)
-        text.append(guess.item())
-        input = guess.unsqueeze(0)
-
-        #Now that we have an h and c, we can start the loop
-        i = 0
-        while(i < 100):
-            if(self.skip):
-                output,hidden = self.skip_decoder(input,hidden,z,device)
-            else:
-                output,hidden = self.decoder(input,hidden)
-            current = output.squeeze()
-            if(sampling_strat == 'max'):
-                guess = torch.argmax(current).unsqueeze(0)
-            elif(sampling_strat == 'rand'):
-                guess = torch.multinomial(F.softmax(temperature*current,dim=0),1)
-            text.append(guess.item())
-            input = guess.unsqueeze(0)
-            i += 1
-            if(guess.item() == 2):
-                break
-
-        return tokenizer.decode(text)
-        """
-        Function that allows us to sample a new sentence for the VAE
-        """
-        assert sampling_strat in ('max', 'rand')
-
-        # Start with encoded text
-        start = np.array(starting_text)
-        text = list(start) #This stores the eventual output
-        current = torch.from_numpy(start).long().view(1,-1)
-        q_z = Normal(torch.zeros(self.z_dim),torch.ones(self.z_dim))
+        mean, std = self.encoder(self.topic.to(device).unsqueeze(0))
+        # q_z = Normal(torch.zeros(self.z_dim),torch.ones(self.z_dim))
+        q_z = Normal(mean,std)
         sample_z = q_z.rsample().view(1,1,-1).to(device)
 
         #The initial step
