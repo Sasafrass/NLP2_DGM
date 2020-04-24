@@ -45,7 +45,7 @@ def train_rnnlm(config, train_data, valid_data, tokenizer):
         model = RNNLM(config['vocab_size'],config['embedding_size'],config['num_hidden']).to(device)
 
     # Setup the loss and optimizer
-    criterion = torch.nn.CrossEntropyLoss(ignore_index=0)
+    criterion = torch.nn.CrossEntropyLoss(ignore_index=0,reduction='sum')
     optimizer = optim.Adam(model.parameters(),config['learning_rate'])
 
     #Load in the optimizer if necessary
@@ -95,7 +95,8 @@ def calc_loss(model, criterion, batch_inputs, batch_targets, device):
 
     seq_length = batch_inputs.shape[1]
     batch_size = batch_inputs.shape[0]
-    curr_loss = criterion(out.view(batch_size*seq_length,-1),targets.view(-1))*seq_length
+    curr_loss = criterion(out.view(batch_size*seq_length,-1),targets.view(-1))
+    curr_loss /= batch_size
     return curr_loss
 
 def calc_loss_old(model, criterion, batch_inputs, batch_targets, device):
